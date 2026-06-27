@@ -2,20 +2,54 @@
 
 ## Repository Overview
 
-This repo contains a single SillyTavern Tavern Helper script (`DeepSeek使用预测release1.51.json`). There is no build system, no tests, no linting, no package manager, and no source directory structure.
+SillyTavern Tavern Helper script for tracking DeepSeek API usage (token consumption, costs, cache hit rates). No build system, no tests, no package manager.
 
-## File Format
+## File Structure
 
-The `.json` file is a complete Tavern Helper script export with an inline IIFE in its `content` field. The JavaScript code is minified/concatenated on a single line — use a JSON viewer or formatter before editing.
+- `DeepSeek使用预测.js` — Actual script code (IIFE). Edit this file.
+- `DeepSeek使用预测V2.00.json` — Full script for manual import into SillyTavern.
+- `DeepSeek使用预测-自动更新.json` — Loader that imports from GitHub Pages (auto-update).
+- `演示/` — Screenshots (gitignored).
+
+## Two Distribution Channels
+
+1. **Manual import**: User downloads `DeepSeek使用预测V2.00.json` and imports directly.
+2. **Auto-update**: User imports `DeepSeek使用预测-自动更新.json` once; script loads `DeepSeek使用预测.js` from GitHub Pages on each SillyTavern startup.
 
 ## Making Changes
 
-- Edit the `"content"` field inside the JSON file. The script is self-contained JavaScript (IIFE pattern).
-- PRICING table at the top of the script defines per-model costs for `deepseek-v4-flash` and `deepseek-v4-pro`.
-- UI is built via string concatenation (`PANEL_HTML`) — not a template system. Be careful with escaping.
-- The script uses `localStorage` for saves and `TavernHelper` APIs for message monitoring.
-- Version string is in the filename (`release1.51`). Update it when bumping versions.
+1. Edit `DeepSeek使用预测.js` (the source of truth).
+2. Update version string in `_ds_current_version` variable.
+3. Commit and push to `main`.
 
-## No Build Step
+## Release Workflow
 
-There is no compilation, transpilation, or bundling. The JSON file is the deliverable — paste it directly into SillyTavern's script import.
+```bash
+gh release create vX.XX --title "release X.XX" --notes "changelog"
+gh api -X POST ".../releases/{id}/assets?name=DeepSeek_Statistic_VX.XX.json" ...
+gh api -X POST ".../releases/{id}/assets?name=DeepSeek_Statistic_auto_update.json" ...
+```
+
+## GitHub Pages (gh-pages branch)
+
+Auto-update fetches JS from `gh-pages` branch. After updating JS on `main`:
+
+```bash
+git checkout gh-pages
+cp ../DeepSeek使用预测.js .
+git add . && git commit -m "deploy: update script" && git push
+git checkout main
+```
+
+## Key Conventions
+
+- UI built via string concatenation (`PANEL_HTML`) — not templates. Escape carefully.
+- Script uses `localStorage` for persistence and `TavernHelper` APIs.
+- Version string lives in `_ds_current_version` variable inside the JS.
+- PRICING table at top of JS defines per-model costs.
+
+## Gotchas
+
+- GitHub Pages caches files; users may see stale versions briefly after push.
+- The JSON `content` field is a JavaScript string — escaping matters.
+- No minification step; the JS is hand-written single-line code.
