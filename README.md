@@ -2,26 +2,17 @@
 
 实时统计 DeepSeek API 的 token 消耗、费用和缓存命中情况。
 
-## 下载
+## 自动更新
 
-前往 [Releases](https://github.com/janmk1453/deepseek-tavern-script/releases) 页面下载最新版本。
+本脚本支持自动更新。在 SillyTavern 中导入以下 JSON 文件即可：
 
-| 文件 | 说明 |
-|------|------|
-| `DeepSeek_Statistic_auto_update.json` | 自动更新版（推荐），导入后自动获取最新脚本 |
-| `DeepSeek_Statistic_VX.XX.json` | 完整版脚本，需手动导入 |
+**导入文件：** [`DeepSeek使用预测-自动更新.json`](../DeepSeek使用预测-自动更新.json)
 
-## 使用方法
+导入后，每次 SillyTavern 启动都会自动从 GitHub 加载最新版本的脚本。
 
-### 自动更新（推荐）
-1. 下载 `DeepSeek_Statistic_auto_update.json`
-2. 在 SillyTavern 中导入该文件
-3. 之后每次启动自动获取最新版本，无需手动更新
+## 手动安装
 
-### 手动更新
-1. 下载 `DeepSeek_Statistic_VX.XX.json`
-2. 在 SillyTavern 中导入该文件
-3. 每次更新需重新导入
+如果不需要自动更新，可以直接导入 [`DeepSeek使用预测V2.00.json`](../DeepSeek使用预测V2.00.json)。
 
 ## 功能
 
