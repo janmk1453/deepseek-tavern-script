@@ -37,18 +37,18 @@
 ### 自动更新（推荐）
 
 1. 下载 `DeepSeek_Statistic_auto_update.json`
-2. 在 SillyTavern 中导入该文件
+2. 在 SillyTavern 的酒馆助手中导入该文件
 3. 之后每次启动自动获取最新版本，无需手动更新
 
 ### 手动更新
 
 1. 下载 `DeepSeek_Statistic_VX.XX.json`
-2. 在 SillyTavern 中导入该文件
+2. 在 SillyTavern 的酒馆助手中导入该文件
 3. 每次更新需重新导入
 
 ## 快速开始
 
-1. **配置 API 密钥**：在设置中输入 DeepSeek API 密钥并保存
+1. **配置 API 密钥**：在设置中输入 DeepSeek API 密钥并保存（非必需）
 2. **查询余额**：点击「查询」按钮获取账户余额
 3. **开始对话**：正常与 AI 对话，插件自动记录统计数据
 4. **查看统计**：点击「图表」按钮查看详细统计数据
