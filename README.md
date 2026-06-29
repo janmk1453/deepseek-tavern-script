@@ -130,11 +130,11 @@
 ## 已知问题
 
 - 浏览器窗口比例接近 1:1 时面板可能错位
-- jsDelivr CDN 缓存自动更新脚本最长 12 小时（需等待自然过期或更新 URL 版本号）
+- GitHub Pages 缓存导致自动更新存在延迟（通常几分钟后自动恢复）
 
 ## 技术说明
 
-- **自动更新原理**：通过 jsDelivr CDN 从 GitHub main 分支提供最新的 JavaScript 脚本，SillyTavern 启动时自动加载
+- **自动更新原理**：通过 GitHub Pages 提供最新的 JavaScript 脚本，SillyTavern 启动时自动加载
 - **数据存储**：所有数据保存在 SillyTavern 的 localStorage 中，不会上传到任何服务器
 - **API 密钥安全**：密钥使用 XOR 加密存储，但仍建议使用权限受限的 API 密钥
 
