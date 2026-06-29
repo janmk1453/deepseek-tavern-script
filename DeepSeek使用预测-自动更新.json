@@ -13,5 +13,5 @@
     "data": true,
     "button": true
   },
-  "content": "import 'https://janmk1453.github.io/deepseek-tavern-script/DeepSeek%E4%BD%BF%E7%94%A8%E9%A2%84%E6%B5%8B.js'"
+  "content": "import 'https://testingcf.jsdelivr.net/gh/janmk1453/deepseek-tavern-script@main/DeepSeek%E4%BD%BF%E7%94%A8%E9%A2%84%E6%B5%8B.js'"
 }

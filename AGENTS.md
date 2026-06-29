@@ -7,14 +7,14 @@ SillyTavern Tavern Helper script for tracking DeepSeek API usage (token consumpt
 ## File Structure
 
 - `DeepSeek使用预测.js` — Actual script code (IIFE). Edit this file.
-- `DeepSeek使用预测V2.00.json` — Full script for manual import into SillyTavern.
-- `DeepSeek使用预测-自动更新.json` — Loader that imports from GitHub Pages (auto-update).
+- `DeepSeek使用预测V2.10.json` — Full script for manual import into SillyTavern.
+- `DeepSeek使用预测-自动更新.json` — Loader that imports from jsDelivr CDN (auto-update).
 - `演示/` — Screenshots (gitignored).
 
 ## Two Distribution Channels
 
-1. **Manual import**: User downloads `DeepSeek使用预测V2.00.json` and imports directly.
-2. **Auto-update**: User imports `DeepSeek使用预测-自动更新.json` once; script loads `DeepSeek使用预测.js` from GitHub Pages on each SillyTavern startup.
+1. **Manual import**: User downloads `DeepSeek使用预测V2.10.json` and imports directly.
+2. **Auto-update**: User imports `DeepSeek使用预测-自动更新.json` once; script loads `DeepSeek使用预测.js` from jsDelivr CDN on each SillyTavern startup.
 
 ## Making Changes
 
@@ -30,17 +30,6 @@ gh api -X POST ".../releases/{id}/assets?name=DeepSeek_Statistic_VX.XX.json" ...
 gh api -X POST ".../releases/{id}/assets?name=DeepSeek_Statistic_auto_update.json" ...
 ```
 
-## GitHub Pages (gh-pages branch)
-
-Auto-update fetches JS from `gh-pages` branch. After updating JS on `main`:
-
-```bash
-git checkout gh-pages
-cp ../DeepSeek使用预测.js .
-git add . && git commit -m "deploy: update script" && git push
-git checkout main
-```
-
 ## Key Conventions
 
 - UI built via string concatenation (`PANEL_HTML`) — not templates. Escape carefully.
@@ -50,6 +39,5 @@ git checkout main
 
 ## Gotchas
 
-- GitHub Pages caches files; users may see stale versions briefly after push.
 - The JSON `content` field is a JavaScript string — escaping matters.
 - No minification step; the JS is hand-written single-line code.
