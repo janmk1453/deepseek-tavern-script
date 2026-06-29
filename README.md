@@ -101,9 +101,11 @@
 
 ### v2.11
 
-- 自动更新切换至 jsDelivr CDN（不再依赖 GitHub Pages，消除编码损坏风险）
+- 恢复 GitHub Pages 自动更新（低延迟，数分钟内生效）
+- 修复 gh-pages 部署时的编码损坏问题（强制使用 git checkout，禁止 PowerShell 重定向）
 - 自动更新脚本新增"打开面板"按钮
-- 移除 gh-pages 部署步骤，简化发布流程
+- 文件统一为 DeepSeek_Statistic_* 命名规范
+- 移除 DeepSeek_Statistic_V2.10.json
 
 ### v2.10
 
