@@ -5,13 +5,18 @@
   "id": "deepseek-stats-v1",
   "info": "实时统计DeepSeek API的token消耗、费用和缓存命中情况。",
   "button": {
-    "enabled": false,
-    "buttons": []
+    "enabled": true,
+    "buttons": [
+      {
+        "name": "打开面板",
+        "visible": true
+      }
+    ]
   },
   "data": {},
   "export_with": {
     "data": true,
     "button": true
   },
-  "content": "import 'https://testingcf.jsdelivr.net/gh/janmk1453/deepseek-tavern-script@main/DeepSeek%E4%BD%BF%E7%94%A8%E9%A2%84%E6%B5%8B.js'"
+  "content": "import 'https://cdn.jsdelivr.net/gh/janmk1453/deepseek-tavern-script@main/DeepSeek使用预测.js'"
 }
