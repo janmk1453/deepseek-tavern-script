@@ -501,16 +501,17 @@ function renderCharts() {
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           plugins: {
-            legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
-            zoom: {
-              pan: { enabled: true, mode: 'x' },
-              zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' },onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)},onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)}
-            }
-          },
-          scales: {
-            x: { min:zR?zR.l:void 0,max:zR?zR.r:void 0,stacked: true, ticks: { color: '#6b7280', font: { family: fontFam }, maxTicksLimit: 20 }, grid: { color: 'rgba(55,65,81,0.4)' }, title: { display: true, text: '对话轮次', color: '#6b7280', font: { size: 11, family: fontFam } } },
-            y: { stacked: true, ticks: { color: '#6b7280', font: { family: fontFam } }, grid: { color: 'rgba(55,65,81,0.4)' }, beginAtZero: true }
-          }
+             legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
+             tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = filtered[idx]; if (!d) return []; var t = new Date(d.timestamp).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return ['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]; } } },
+             zoom: {
+               pan: { enabled: true, mode: 'x' },
+               zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' },onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)},onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)}
+             }
+           },
+           scales: {
+             x: { min:zR?zR.l:void 0,max:zR?zR.r:void 0,stacked: true, ticks: { color: '#6b7280', font: { family: fontFam }, maxTicksLimit: 20 }, grid: { color: 'rgba(55,65,81,0.4)' }, title: { display: true, text: '对话轮次', color: '#6b7280', font: { size: 11, family: fontFam } } },
+             y: { stacked: true, ticks: { color: '#6b7280', font: { family: fontFam } }, grid: { color: 'rgba(55,65,81,0.4)' }, beginAtZero: true }
+           }
         }
       });
     }
@@ -535,16 +536,17 @@ function renderCharts() {
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           plugins: {
-            legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
-            zoom: {
-              pan: { enabled: true, mode: 'x' },
-              zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' },onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)},onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)}
-            }
-          },
-          scales: {
-            x: { min:zR?zR.l:void 0,max:zR?zR.r:void 0,stacked: true, ticks: { color: '#6b7280', font: { family: fontFam }, maxTicksLimit: 20 }, grid: { color: 'rgba(55,65,81,0.4)' }, title: { display: true, text: '对话轮次', color: '#6b7280', font: { size: 11, family: fontFam } } },
-            y: { stacked: true, ticks: { color: '#6b7280', font: { family: fontFam } }, grid: { color: 'rgba(55,65,81,0.4)' }, beginAtZero: true, title: { display: true, text: '费用 (¥)', color: '#6b7280', font: { size: 11, family: fontFam } } }
-          }
+             legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
+             tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = filtered[idx]; if (!d) return []; var t = new Date(d.timestamp).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return ['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]; } } },
+             zoom: {
+               pan: { enabled: true, mode: 'x' },
+               zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' },onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)},onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)}
+             }
+           },
+           scales: {
+             x: { min:zR?zR.l:void 0,max:zR?zR.r:void 0,stacked: true, ticks: { color: '#6b7280', font: { family: fontFam }, maxTicksLimit: 20 }, grid: { color: 'rgba(55,65,81,0.4)' }, title: { display: true, text: '对话轮次', color: '#6b7280', font: { size: 11, family: fontFam } } },
+             y: { stacked: true, ticks: { color: '#6b7280', font: { family: fontFam } }, grid: { color: 'rgba(55,65,81,0.4)' }, beginAtZero: true, title: { display: true, text: '费用 (¥)', color: '#6b7280', font: { size: 11, family: fontFam } } }
+           }
         }
       });
     }
@@ -567,14 +569,15 @@ function renderCharts() {
           maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
           plugins: {
-            legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
-            zoom: {
-              pan: { enabled: true, mode: 'x' },
-              zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' },onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)},onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)}
-            }
-          },
-          scales: {
-            x: { min:zR?zR.l:void 0,max:zR?zR.r:void 0,ticks: { color: '#6b7280', font: { family: fontFam }, maxTicksLimit: 20 }, grid: { color: 'rgba(55,65,81,0.4)' }, title: { display: true, text: '对话轮次', color: '#6b7280', font: { size: 11, family: fontFam } } },
+             legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
+             tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = filtered[idx]; if (!d) return []; var t = new Date(d.timestamp).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return ['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]; } } },
+             zoom: {
+               pan: { enabled: true, mode: 'x' },
+               zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' },onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)},onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)}
+             }
+           },
+           scales: {
+             x: { min:zR?zR.l:void 0,max:zR?zR.r:void 0,ticks: { color: '#6b7280', font: { family: fontFam }, maxTicksLimit: 20 }, grid: { color: 'rgba(55,65,81,0.4)' }, title: { display: true, text: '对话轮次', color: '#6b7280', font: { size: 11, family: fontFam } } },
             y: { ticks: { color: '#6b7280', font: { family: fontFam }, callback: function(value) { return value.toFixed(1) + '%'; } }, grid: { color: 'rgba(55,65,81,0.4)' }, beginAtZero: true, max: 100, title: { display: true, text: '缓存命中率', color: '#6b7280', font: { size: 11, family: fontFam } } }
           }
         }
