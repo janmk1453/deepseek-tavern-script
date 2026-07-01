@@ -4,6 +4,8 @@
 
 SillyTavern Tavern Helper script that tracks DeepSeek API usage (tokens, cost, cache hit rates). No build system, no tests, no package manager.
 
+**Rule: Never commit, push, deploy to gh-pages, or release unless explicitly asked. Only edit files and sync JSON.**
+
 ## Files
 
 - `DeepSeek使用预测.js` — Source of truth (IIFE). Edit this file.
