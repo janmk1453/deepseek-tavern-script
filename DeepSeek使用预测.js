@@ -236,6 +236,13 @@ function init() {
       refreshSaveSelect();
       refreshUI();
     }, 100); 
+  var dsFB = doc.createElement('div');
+  dsFB.id = 'ds-floating-close';
+  dsFB.style.cssText = 'position:absolute;right:4px;bottom:60px;width:32px;height:32px;background:#1e293b;border:1px solid #374151;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:#9ca3af;z-index:1;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
+  dsFB.innerHTML = '\u2715';
+  dsFB.title = '\u5173\u95ED\u9762\u677F';
+  dsFB.addEventListener('click', function(e) { e.stopPropagation(); togglePanel(); });
+  panel.appendChild(dsFB);
   var dsCO = doc.createElement('div');
   dsCO.id = 'ds-compare-overlay';
   dsCO.className = 'ds-compare-overlay'; dsCO.style.zIndex = '999999';
@@ -359,6 +366,13 @@ function createChartUI() {
       '<div style="margin-bottom:20px"><div style="font-size:12px;color:#9ca3af;font-weight:500;margin-bottom:8px">图3 · 缓存命中率趋势</div><div style="position:relative;height:40vh;min-height:280px"><canvas id="ds-chart-rate"></canvas></div><div id="ds-slider-rate-track" class="ds-chart-slider-track" style="margin:0"><div id="ds-slider-rate-thumb" class="ds-chart-slider-thumb"><div class="ds-slider-handle ds-slider-handle-left"></div><div class="ds-slider-handle ds-slider-handle-right"></div></div></div><div id="ds-slider-rate-label" class="ds-chart-slider-label"></div></div>' +
     '</div>' +
   '</div>';
+  var dsCFB = doc.createElement('div');
+  dsCFB.id = 'ds-chart-floating-close';
+  dsCFB.style.cssText = 'position:absolute;right:4px;bottom:60px;width:32px;height:32px;background:#1e293b;border:1px solid #374151;border-radius:50%;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:#9ca3af;z-index:1;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
+  dsCFB.innerHTML = '\u2715';
+  dsCFB.title = '\u5173\u95ED\u56FE\u8868\u9762\u677F';
+  dsCFB.addEventListener('click', function(e) { e.stopPropagation(); closeCharts(); });
+  panel.appendChild(dsCFB);
   doc.body.appendChild(overlay);
   doc.body.appendChild(panel);
   var dsStyle = doc.createElement('style');
