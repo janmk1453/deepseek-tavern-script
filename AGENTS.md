@@ -47,6 +47,42 @@ gh release create vX.XX --title "release X.XX" --notes "<changelog>"
 gh release upload vX.XX "DeepSeek_Statistic_VX.XX.json" "DeepSeek_Statistic_auto_update.json"
 ```
 
+Release notes 必须遵循以下固定格式：
+
+```markdown
+## X.XX 更新内容
+
+### 新增功能
+- ...
+
+### 改进
+- ...
+
+### 修复
+- ...
+
+---
+
+## 📥 下载指引
+
+| 文件 | 说明 | 推荐 |
+|------|------|------|
+| \DeepSeek_Statistic_VX.XX.json\ | 完整版脚本，手动导入 | 需要特定版本时使用 |
+| \DeepSeek_Statistic_auto_update.json\ | 自动更新版，导入后自动从 GitHub 获取最新脚本 | ✅ 推荐 |
+
+### 自动更新使用方法
+1. 下载 \DeepSeek_Statistic_auto_update.json\
+2. 在 SillyTavern 中的酒馆助手导入该文件
+3. 之后每次启动自动获取最新版本，无需手动更新
+
+### 手动更新使用方法
+1. 下载 \DeepSeek_Statistic_VX.XX.json\
+2. 在 SillyTavern 中的酒馆助手导入该文件
+3. 每次更新需重新导入
+```
+
+其中 X.XX 替换为实际版本号，各更新内容章节按实际情况填写，无内容的章节可省略。
+
 > **GitHub Pages cache**: Typically serves latest file within minutes of push.
 
 ## Script Architecture
