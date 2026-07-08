@@ -1,4 +1,4 @@
-# DeepSeek 使用预测 - SillyTavern 脚本
+# DeepSeek 使用预测 - SillyTavern酒馆助手 脚本
 
 实时统计和预测 DeepSeek API 的 token 消耗、费用、预测剩余对话数和缓存命中情况。
 
