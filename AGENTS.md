@@ -42,12 +42,22 @@ git checkout main
 
 **⚠️ ENCODING WARNING**: Never use `>` / `Out-File` / `cp` in PowerShell to copy the JS file. These commands recode UTF-8 bytes through the system code page (GBK on Chinese Windows), corrupting all Chinese characters and causing syntax errors. `git checkout` preserves exact repository bytes.
 
+**`.nojekyll` requirement**: The `gh-pages` branch must have a `.nojekyll` file at root. Without it, GitHub Pages sends `Content-Type: text/plain` for `.js` files, causing the auto-update script to fail silently. This file is already committed in the `gh-pages` branch; do not remove it.
+
 ## Release
 
 ```bash
+# 1. 创建 release（用实际内容替换 <changelog>）
 gh release create vX.XX --title "release X.XX" --notes "<changelog>"
-gh release upload vX.XX "DeepSeek_Statistic_VX.XX.json" "DeepSeek_Statistic_auto_update.json" "DeepSeek_Statistic_auto_update_jsDelivr_cdn.json"
+
+# 2. 上传资产（--clobber 允许覆盖已有文件）
+gh release upload vX.XX --clobber "DeepSeek_Statistic_VX.XX.json" "DeepSeek_Statistic_auto_update.json" "DeepSeek_Statistic_auto_update_jsDelivr_cdn.json"
+
+# 3. 刷新 jsDelivr CDN 缓存
+Invoke-RestMethod -Uri "https://purge.jsdelivr.net/gh/janmk1453/deepseek-tavern-script@gh-pages/DeepSeek%E4%BD%BF%E7%94%A8%E9%A2%84%E6%B5%8B.js" -Method Get | Out-Null
 ```
+
+> 如需在 release 创建后修改 release notes，使用 `gh release edit vX.XX --notes "<new_changelog>"`。
 
 Release notes 必须遵循以下固定格式：
 
