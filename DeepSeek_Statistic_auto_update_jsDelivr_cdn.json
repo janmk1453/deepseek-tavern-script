@@ -5,7 +5,13 @@
   "id": "deepseek-stats-cdn-v1",
   "info": "实时统计DeepSeek API的token消耗、费用和缓存命中情况（CDN加速版）。",
   "button": {
-    "enabled": false
+    "enabled": true,
+    "buttons": [
+      {
+        "name": "打开面板",
+        "visible": true
+      }
+    ]
   },
   "data": {},
   "export_with": {
