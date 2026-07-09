@@ -9,21 +9,21 @@ SillyTavern Tavern Helper script that tracks DeepSeek API usage (tokens, cost, c
 ## Files
 
 - `DeepSeek使用预测.js` — Source of truth (IIFE). Edit this file.
-- `DeepSeek_Statistic_V2.15.json` — Packaged JSON for manual import; copy & rename from previous version on release. `content` must stay in sync with JS.
+- `DeepSeek_Statistic_V2.16.json` — Packaged JSON for manual import; copy & rename from previous version on release. `content` must stay in sync with JS.
 - `DeepSeek_Statistic_auto_update.json` — Auto-update loader (GitHub Pages). Only touch if URL changes.
-- `DeepSeek_Statistic_auto_update_cdn.json` — Auto-update loader (jsDelivr CDN). Only touch if URL changes.
+- `DeepSeek_Statistic_auto_update_jsDelivr_cdn.json` — Auto-update loader (jsDelivr CDN). Only touch if URL changes.
 - `README.md` — Docs; update changelog in lockstep.
 - `演示/` — Screenshots (gitignored).
 
 ## Making Changes
 
 1. Edit `DeepSeek使用预测.js`
-2. Bump `_ds_current_version` variable (currently `"2.15"`)
+2. Bump `_ds_current_version` variable (currently `"2.16"`)
 3. **Sync JSON** — extract the IIFE into the versioned JSON's `content` field:
    ```bash
-    node -e "var f=require('fs');var js=f.readFileSync('DeepSeek使用预测.js','utf8');var i=js.indexOf('(function()');var json=JSON.parse(f.readFileSync('DeepSeek_Statistic_V2.15.json','utf8'));json.content=js.substring(i);f.writeFileSync('DeepSeek_Statistic_V2.15.json',JSON.stringify(json,null,2)+'\n');console.log('synced')"
+    node -e "var f=require('fs');var js=f.readFileSync('DeepSeek使用预测.js','utf8');var i=js.indexOf('(function()');var json=JSON.parse(f.readFileSync('DeepSeek_Statistic_V2.16.json','utf8'));json.content=js.substring(i);f.writeFileSync('DeepSeek_Statistic_V2.16.json',JSON.stringify(json,null,2)+'\n');console.log('synced')"
     ```
-4. Validate: `node --check DeepSeek使用预测.js` and `node -e "new Function(JSON.parse(require('fs').readFileSync('DeepSeek_Statistic_V2.15.json','utf8')).content);console.log('valid')"`
+4. Validate: `node --check DeepSeek使用预测.js` and `node -e "new Function(JSON.parse(require('fs').readFileSync('DeepSeek_Statistic_V2.16.json','utf8')).content);console.log('valid')"`
 5. Update `README.md` changelog if needed
 6. Commit and push to `main`
 
@@ -46,7 +46,7 @@ git checkout main
 
 ```bash
 gh release create vX.XX --title "release X.XX" --notes "<changelog>"
-gh release upload vX.XX "DeepSeek_Statistic_VX.XX.json" "DeepSeek_Statistic_auto_update.json" "DeepSeek_Statistic_auto_update_cdn.json"
+gh release upload vX.XX "DeepSeek_Statistic_VX.XX.json" "DeepSeek_Statistic_auto_update.json" "DeepSeek_Statistic_auto_update_jsDelivr_cdn.json"
 ```
 
 Release notes 必须遵循以下固定格式：
@@ -71,7 +71,7 @@ Release notes 必须遵循以下固定格式：
 |------|------|------|
 | \DeepSeek_Statistic_VX.XX.json\ | 完整版脚本，手动导入 | 需要特定版本时使用 |
 | \DeepSeek_Statistic_auto_update.json\ | 自动更新版（GitHub Pages），导入后自动获取最新脚本 | 境外用户推荐 |
-| \DeepSeek_Statistic_auto_update_cdn.json\ | 自动更新版（jsDelivr CDN），导入后自动获取最新脚本 | ✅ 国内用户推荐 |
+| \DeepSeek_Statistic_auto_update_jsDelivr_cdn.json\ | 自动更新版（jsDelivr CDN），导入后自动获取最新脚本 | ✅ 国内用户推荐 |
 
 ### 自动更新使用方法（GitHub Pages）
 1. 下载 \DeepSeek_Statistic_auto_update.json\
@@ -79,7 +79,7 @@ Release notes 必须遵循以下固定格式：
 3. 之后每次启动自动获取最新版本，无需手动更新
 
 ### 自动更新使用方法（jsDelivr CDN）
-1. 下载 \DeepSeek_Statistic_auto_update_cdn.json\
+1. 下载 \DeepSeek_Statistic_auto_update_jsDelivr_cdn.json\
 2. 在 SillyTavern 中的酒馆助手导入该文件
 3. 之后每次启动自动获取最新版本，无需手动更新
 
@@ -109,5 +109,5 @@ Release notes 必须遵循以下固定格式：
 - **JSON escaping**: `content` is a JSON string literal; all `\` and `"` inside must be properly escaped for JSON.
 - **GitHub Pages cache**: Typically serves latest file within minutes of push, but may occasionally lag.
 - **Chinese encoding**: JS source uses UTF-8 encoded Chinese characters in `PANEL_HTML` and UI strings. Any file copy must preserve UTF-8 encoding (use `git checkout` not shell redirection).
-- **Sync discipline**: After editing JS, always regenerate DeepSeek_Statistic_V2.15.json. The auto-update JSONs only need changes if the import URL changes.
+- **Sync discipline**: After editing JS, always regenerate DeepSeek_Statistic_V2.16.json. The auto-update JSONs only need changes if the import URL changes.
 - **Windows encoding**: `gh release upload` with Chinese filenames via PowerShell will mangle the asset names. Workaround: rename files to ASCII before upload, then rename back. Or use `cmd /c` with proper quoting.

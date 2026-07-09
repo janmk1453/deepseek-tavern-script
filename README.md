@@ -30,7 +30,7 @@
 | 文件 | 说明 | 推荐 |
 |------|------|------|
 | `DeepSeek_Statistic_auto_update.json` | 自动更新版（GitHub Pages），导入后自动获取最新脚本 | 境外用户推荐 |
-| `DeepSeek_Statistic_auto_update_cdn.json` | 自动更新版（jsDelivr CDN），导入后自动获取最新脚本 | ✅ 国内用户推荐 |
+| `DeepSeek_Statistic_auto_update_jsDelivr_cdn.json` | 自动更新版（jsDelivr CDN），导入后自动获取最新脚本 | ✅ 国内用户推荐 |
 | `DeepSeek_Statistic_VX.XX.json` | 完整版脚本，需手动导入 | 需要特定版本时使用 |
 
 ## 使用方法
@@ -45,7 +45,7 @@
 
 #### 国内用户（jsDelivr CDN）
 
-1. 下载 `DeepSeek_Statistic_auto_update_cdn.json`
+1. 下载 `DeepSeek_Statistic_auto_update_jsDelivr_cdn.json`
 2. 在 SillyTavern 的酒馆助手中导入该文件
 3. 之后每次启动自动获取最新版本，无需手动更新
 
