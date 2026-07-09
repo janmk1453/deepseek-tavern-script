@@ -9,21 +9,20 @@ SillyTavern Tavern Helper script that tracks DeepSeek API usage (tokens, cost, c
 ## Files
 
 - `DeepSeek使用预测.js` — Source of truth (IIFE). Edit this file.
-- `DeepSeek_Statistic_V2.17.json` — Packaged JSON for manual import; copy & rename from previous version on release. `content` must stay in sync with JS.
+- `DeepSeek_Statistic_VX.XX.json` — Packaged JSON for manual import; copy & rename from previous version on release. `content` must stay in sync with JS.
 - `DeepSeek_Statistic_auto_update.json` — Auto-update loader (GitHub Pages). Only touch if URL changes.
 - `DeepSeek_Statistic_auto_update_jsDelivr_cdn.json` — Auto-update loader (jsDelivr CDN). Only touch if URL changes.
 - `README.md` — Docs; update changelog in lockstep.
-- `演示/` — Screenshots (gitignored).
 
 ## Making Changes
 
 1. Edit `DeepSeek使用预测.js`
-2. Bump `_ds_current_version` variable (currently `"2.17"`)
+2. Bump `_ds_current_version` variable (e.g. `"X.XX"`)
 3. **Sync JSON** — extract the IIFE into the versioned JSON's `content` field:
    ```bash
-    node -e "var f=require('fs');var js=f.readFileSync('DeepSeek使用预测.js','utf8');var i=js.indexOf('(function()');var json=JSON.parse(f.readFileSync('DeepSeek_Statistic_V2.17.json','utf8'));json.content=js.substring(i);f.writeFileSync('DeepSeek_Statistic_V2.17.json',JSON.stringify(json,null,2)+'\n');console.log('synced')"
+    node -e "var f=require('fs');var js=f.readFileSync('DeepSeek使用预测.js','utf8');var i=js.indexOf('(function()');var json=JSON.parse(f.readFileSync('DeepSeek_Statistic_VX.XX.json','utf8'));json.content=js.substring(i);f.writeFileSync('DeepSeek_Statistic_VX.XX.json',JSON.stringify(json,null,2)+'\n');console.log('synced')"
     ```
-4. Validate: `node --check DeepSeek使用预测.js` and `node -e "new Function(JSON.parse(require('fs').readFileSync('DeepSeek_Statistic_V2.17.json','utf8')).content);console.log('valid')"`
+4. Validate: `node --check DeepSeek使用预测.js` and `node -e "new Function(JSON.parse(require('fs').readFileSync('DeepSeek_Statistic_VX.XX.json','utf8')).content);console.log('valid')"`
 5. Update `README.md` changelog if needed
 6. Commit and push to `main`
 
@@ -42,7 +41,7 @@ git checkout main
 
 **⚠️ ENCODING WARNING**: Never use `>` / `Out-File` / `cp` in PowerShell to copy the JS file. These commands recode UTF-8 bytes through the system code page (GBK on Chinese Windows), corrupting all Chinese characters and causing syntax errors. `git checkout` preserves exact repository bytes.
 
-**`.nojekyll` warning**: DO NOT add `.nojekyll` to the `gh-pages` branch. It causes GitHub Pages builds to fail with "Page build failed" error, breaking the auto-update script delivery. The `README.md` on the `gh-pages` branch provides enough content for the legacy Jekyll build to succeed. The `Content-Type: text/plain` issue was not observed in practice — the JS file is served correctly via `raw.githubusercontent.com` or jsDelivr CDN.
+**`.nojekyll` warning**: DO NOT add `.nojekyll` to the `gh-pages` branch. It causes GitHub Pages builds to fail with "Page build failed" error, breaking the auto-update script delivery. The `README.md` on the `gh-pages` branch provides enough content for the legacy Jekyll build to succeed.
 
 ## Release
 
@@ -96,7 +95,6 @@ Release notes 必须遵循以下固定格式：
 
 其中 X.XX 替换为实际版本号，各更新内容章节按实际情况填写，无内容的章节可省略。
 
-> **GitHub Pages cache**: Typically serves latest file within minutes of push.
 > **jsDelivr cache**: Clears within minutes after push; manual purge at https://www.jsdelivr.com/tools/purge
 
 ## Script Architecture
@@ -114,5 +112,5 @@ Release notes 必须遵循以下固定格式：
 - **JSON escaping**: `content` is a JSON string literal; all `\` and `"` inside must be properly escaped for JSON.
 - **GitHub Pages cache**: Typically serves latest file within minutes of push, but may occasionally lag.
 - **Chinese encoding**: JS source uses UTF-8 encoded Chinese characters in `PANEL_HTML` and UI strings. Any file copy must preserve UTF-8 encoding (use `git checkout` not shell redirection).
-- **Sync discipline**: After editing JS, always regenerate DeepSeek_Statistic_V2.17.json. The auto-update JSONs only need changes if the import URL changes.
+- **Sync discipline**: After editing JS, always regenerate DeepSeek_Statistic_VX.XX.json. The auto-update JSONs only need changes if the import URL changes.
 - **Windows encoding**: `gh release upload` with Chinese filenames via PowerShell will mangle the asset names. Workaround: rename files to ASCII before upload, then rename back. Or use `cmd /c` with proper quoting.
