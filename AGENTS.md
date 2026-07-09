@@ -71,15 +71,10 @@ Release notes 必须遵循以下固定格式：
 |------|------|------|
 | \DeepSeek_Statistic_VX.XX.json\ | 完整版脚本，手动导入 | 需要特定版本时使用 |
 | \DeepSeek_Statistic_auto_update.json\ | 自动更新版（GitHub Pages），导入后自动获取最新脚本 | ✅推荐 |
-| \DeepSeek_Statistic_auto_update_jsDelivr_cdn.json\ | 自动更新版（jsDelivr CDN），导入后自动获取最新脚本 | 无法使用另一个自动更新脚本时使用 |
+| \DeepSeek_Statistic_auto_update_jsDelivr_cdn.json\ | 自动更新版（jsDelivr CDN），导入后自动获取最新脚本 | 该渠道更新较慢，但国内网络适应性强 |
 
-### 自动更新使用方法（GitHub Pages）
+### 自动更新使用方法
 1. 下载 \DeepSeek_Statistic_auto_update.json\
-2. 在 SillyTavern 中的酒馆助手导入该文件
-3. 之后每次启动自动获取最新版本，无需手动更新
-
-### 自动更新使用方法（jsDelivr CDN）
-1. 下载 \DeepSeek_Statistic_auto_update_jsDelivr_cdn.json\
 2. 在 SillyTavern 中的酒馆助手导入该文件
 3. 之后每次启动自动获取最新版本，无需手动更新
 
