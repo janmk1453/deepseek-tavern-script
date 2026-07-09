@@ -10,7 +10,8 @@ SillyTavern Tavern Helper script that tracks DeepSeek API usage (tokens, cost, c
 
 - `DeepSeek使用预测.js` — Source of truth (IIFE). Edit this file.
 - `DeepSeek_Statistic_V2.15.json` — Packaged JSON for manual import; copy & rename from previous version on release. `content` must stay in sync with JS.
-- `DeepSeek_Statistic_auto_update.json` — Auto-update loader; imports JS from GitHub Pages. Only touch if URL changes.
+- `DeepSeek_Statistic_auto_update.json` — Auto-update loader (GitHub Pages). Only touch if URL changes.
+- `DeepSeek_Statistic_auto_update_cdn.json` — Auto-update loader (jsDelivr CDN). Only touch if URL changes.
 - `README.md` — Docs; update changelog in lockstep.
 - `演示/` — Screenshots (gitignored).
 
@@ -29,6 +30,7 @@ SillyTavern Tavern Helper script that tracks DeepSeek API usage (tokens, cost, c
 ## Deploy to GitHub Pages (for auto-update)
 
 Auto-update users fetch JS from `gh-pages` branch via GitHub Pages. After pushing to `main`:
+(The jsDelivr CDN auto-update users fetch from the same `gh-pages` branch automatically.)
 
 ```bash
 git checkout gh-pages
@@ -44,7 +46,7 @@ git checkout main
 
 ```bash
 gh release create vX.XX --title "release X.XX" --notes "<changelog>"
-gh release upload vX.XX "DeepSeek_Statistic_VX.XX.json" "DeepSeek_Statistic_auto_update.json"
+gh release upload vX.XX "DeepSeek_Statistic_VX.XX.json" "DeepSeek_Statistic_auto_update.json" "DeepSeek_Statistic_auto_update_cdn.json"
 ```
 
 Release notes 必须遵循以下固定格式：
@@ -68,10 +70,16 @@ Release notes 必须遵循以下固定格式：
 | 文件 | 说明 | 推荐 |
 |------|------|------|
 | \DeepSeek_Statistic_VX.XX.json\ | 完整版脚本，手动导入 | 需要特定版本时使用 |
-| \DeepSeek_Statistic_auto_update.json\ | 自动更新版，导入后自动从 GitHub 获取最新脚本 | ✅ 推荐 |
+| \DeepSeek_Statistic_auto_update.json\ | 自动更新版（GitHub Pages），导入后自动获取最新脚本 | 境外用户推荐 |
+| \DeepSeek_Statistic_auto_update_cdn.json\ | 自动更新版（jsDelivr CDN），导入后自动获取最新脚本 | ✅ 国内用户推荐 |
 
-### 自动更新使用方法
+### 自动更新使用方法（GitHub Pages）
 1. 下载 \DeepSeek_Statistic_auto_update.json\
+2. 在 SillyTavern 中的酒馆助手导入该文件
+3. 之后每次启动自动获取最新版本，无需手动更新
+
+### 自动更新使用方法（jsDelivr CDN）
+1. 下载 \DeepSeek_Statistic_auto_update_cdn.json\
 2. 在 SillyTavern 中的酒馆助手导入该文件
 3. 之后每次启动自动获取最新版本，无需手动更新
 
@@ -84,6 +92,7 @@ Release notes 必须遵循以下固定格式：
 其中 X.XX 替换为实际版本号，各更新内容章节按实际情况填写，无内容的章节可省略。
 
 > **GitHub Pages cache**: Typically serves latest file within minutes of push.
+> **jsDelivr cache**: Clears within minutes after push; manual purge at https://www.jsdelivr.com/tools/purge
 
 ## Script Architecture
 
@@ -100,5 +109,5 @@ Release notes 必须遵循以下固定格式：
 - **JSON escaping**: `content` is a JSON string literal; all `\` and `"` inside must be properly escaped for JSON.
 - **GitHub Pages cache**: Typically serves latest file within minutes of push, but may occasionally lag.
 - **Chinese encoding**: JS source uses UTF-8 encoded Chinese characters in `PANEL_HTML` and UI strings. Any file copy must preserve UTF-8 encoding (use `git checkout` not shell redirection).
-- **Sync discipline**: After editing JS, always regenerate DeepSeek_Statistic_V2.15.json. The auto-update JSON only needs changes if the import URL changes.
+- **Sync discipline**: After editing JS, always regenerate DeepSeek_Statistic_V2.15.json. The auto-update JSONs only need changes if the import URL changes.
 - **Windows encoding**: `gh release upload` with Chinese filenames via PowerShell will mangle the asset names. Workaround: rename files to ASCII before upload, then rename back. Or use `cmd /c` with proper quoting.

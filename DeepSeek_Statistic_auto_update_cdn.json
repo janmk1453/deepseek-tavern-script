@@ -1,0 +1,22 @@
+{
+  "type": "script",
+  "enabled": true,
+  "name": "DeepSeek使用预测 (CDN)",
+  "id": "deepseek-stats-cdn-v1",
+  "info": "实时统计DeepSeek API的token消耗、费用和缓存命中情况（CDN加速版）。",
+  "button": {
+    "enabled": true,
+    "buttons": [
+      {
+        "name": "打开面板",
+        "visible": true
+      }
+    ]
+  },
+  "data": {},
+  "export_with": {
+    "data": true,
+    "button": true
+  },
+  "content": "import 'https://cdn.jsdelivr.net/gh/janmk1453/deepseek-tavern-script@gh-pages/DeepSeek%E4%BD%BF%E7%94%A8%E9%A2%84%E6%B5%8B.js'"
+}
