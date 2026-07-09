@@ -42,7 +42,7 @@ git checkout main
 
 **⚠️ ENCODING WARNING**: Never use `>` / `Out-File` / `cp` in PowerShell to copy the JS file. These commands recode UTF-8 bytes through the system code page (GBK on Chinese Windows), corrupting all Chinese characters and causing syntax errors. `git checkout` preserves exact repository bytes.
 
-**`.nojekyll` requirement**: The `gh-pages` branch must have a `.nojekyll` file at root. Without it, GitHub Pages sends `Content-Type: text/plain` for `.js` files, causing the auto-update script to fail silently. This file is already committed in the `gh-pages` branch; do not remove it.
+**`.nojekyll` warning**: DO NOT add `.nojekyll` to the `gh-pages` branch. It causes GitHub Pages builds to fail with "Page build failed" error, breaking the auto-update script delivery. The `README.md` on the `gh-pages` branch provides enough content for the legacy Jekyll build to succeed. The `Content-Type: text/plain` issue was not observed in practice — the JS file is served correctly via `raw.githubusercontent.com` or jsDelivr CDN.
 
 ## Release
 
