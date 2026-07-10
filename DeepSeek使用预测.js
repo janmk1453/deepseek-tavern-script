@@ -78,8 +78,9 @@ function checkForUpdates() {
     .catch(function(e) {
       if (btn) btn.textContent = "❌ 网络错误";
       setTimeout(function() { if (btn) btn.textContent = "🔄 检查更新"; }, 2000);
-    });
+  });
 }
+
 
 // ===== 初始化入口 =====
 // 延迟 2 秒后执行，确保酒馆和酒馆助手接口已就绪
@@ -395,9 +396,10 @@ function createChartUI() {
     '<div id="ds-chart-help" style="display:none;margin-bottom:12px;padding:12px 14px;background:#0e1520;border:1px solid #374151;border-radius:8px;font-size:12px;color:#9ca3af;line-height:1.7;font-family:system-ui,-apple-system,sans-serif"><div style="font-size:13px;color:#e5e7eb;font-weight:600;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #1f2937">操作说明</div><div style="margin-bottom:8px"><span style="color:#60a5fa;font-weight:500">🖱️ 键鼠操作：</span>滚轮缩放，鼠标选中缩放，拖拽底部滑块沿X轴移动，按住滑块任意一边拖动缩放</div><div style="margin-bottom:8px"><span style="color:#60a5fa;font-weight:500">📱 触屏操作：</span>按住滑块任意一边拖动缩放 · 拖拽底部滑块沿X轴移动</div><div style="margin-bottom:8px"><span style="color:#60a5fa;font-weight:500">📊 图例切换：</span>点击图例名称可显示/隐藏对应数据系列</div><div style="margin-bottom:8px"><span style="color:#60a5fa;font-weight:500">🔄 模型切换：</span>左上角 radio 按钮切换 v4-flash / v4-pro 查看不同模型的统计数据</div><div><span style="color:#60a5fa;font-weight:500">↩️ 重置视图：</span>点击「重置缩放」按钮恢复默认缩放状态</div></div>' +
     '<div id="ds-chart-loading" style="text-align:center;padding:40px;color:#6b7280;font-size:13px">正在加载图表，可能需要较长时间，请保证良好网络环境，耐心等待...</div>' +
     '<div id="ds-chart-container" style="display:none">' +
-      '<div style="margin-bottom:20px"><div style="font-size:12px;color:#9ca3af;font-weight:500;margin-bottom:8px">图1 · Token 趋势</div><div style="position:relative;height:40vh;min-height:280px"><canvas id="ds-chart-token"></canvas></div><div id="ds-slider-token-track" class="ds-chart-slider-track" style="margin:0"><div id="ds-slider-token-thumb" class="ds-chart-slider-thumb"><div class="ds-slider-handle ds-slider-handle-left"></div><div class="ds-slider-handle ds-slider-handle-right"></div></div></div><div id="ds-slider-token-label" class="ds-chart-slider-label"></div></div>' +
-      '<div><div style="font-size:12px;color:#9ca3af;font-weight:500;margin-bottom:8px">图2 · 费用趋势</div><div style="position:relative;height:40vh;min-height:280px"><canvas id="ds-chart-cost"></canvas></div><div id="ds-slider-cost-track" class="ds-chart-slider-track" style="margin:0"><div id="ds-slider-cost-thumb" class="ds-chart-slider-thumb"><div class="ds-slider-handle ds-slider-handle-left"></div><div class="ds-slider-handle ds-slider-handle-right"></div></div></div><div id="ds-slider-cost-label" class="ds-chart-slider-label"></div></div>' +
-      '<div style="margin-bottom:20px"><div style="font-size:12px;color:#9ca3af;font-weight:500;margin-bottom:8px">图3 · 缓存命中率趋势</div><div style="position:relative;height:40vh;min-height:280px"><canvas id="ds-chart-rate"></canvas></div><div id="ds-slider-rate-track" class="ds-chart-slider-track" style="margin:0"><div id="ds-slider-rate-thumb" class="ds-chart-slider-thumb"><div class="ds-slider-handle ds-slider-handle-left"></div><div class="ds-slider-handle ds-slider-handle-right"></div></div></div><div id="ds-slider-rate-label" class="ds-chart-slider-label"></div></div>' +
+      '<div style="margin-bottom:20px"><div style="font-size:12px;color:#9ca3af;font-weight:500;margin-bottom:8px;display:flex;align-items:center;gap:4px;flex-wrap:wrap">图1 · Token 趋势<span id="ds-toggle-token" style="font-size:10px;padding:2px 7px;border-radius:3px;background:#374151;color:#9ca3af;cursor:pointer">轮次</span><select id="ds-month-token" style="font-size:11px;padding:2px 6px;border-radius:4px;background:#1e293b;color:#93c5fd;border:1px solid #6366f1;display:none;cursor:pointer;font-family:system-ui,-apple-system,sans-serif"></select></div><div style="position:relative;height:40vh;min-height:280px"><canvas id="ds-chart-token"></canvas></div><div id="ds-slider-token-track" class="ds-chart-slider-track" style="margin:0"><div id="ds-slider-token-thumb" class="ds-chart-slider-thumb"><div class="ds-slider-handle ds-slider-handle-left"></div><div class="ds-slider-handle ds-slider-handle-right"></div></div></div><div id="ds-slider-token-label" class="ds-chart-slider-label"></div></div>' +
+      '<div style="margin-bottom:20px"><div style="font-size:12px;color:#9ca3af;font-weight:500;margin-bottom:8px;display:flex;align-items:center;gap:4px;flex-wrap:wrap">图2 · 费用趋势<span id="ds-toggle-cost" style="font-size:10px;padding:2px 7px;border-radius:3px;background:#374151;color:#9ca3af;cursor:pointer">轮次</span><select id="ds-month-cost" style="font-size:11px;padding:2px 6px;border-radius:4px;background:#1e293b;color:#93c5fd;border:1px solid #6366f1;display:none;cursor:pointer;font-family:system-ui,-apple-system,sans-serif"></select></div><div style="position:relative;height:40vh;min-height:280px"><canvas id="ds-chart-cost"></canvas></div><div id="ds-slider-cost-track" class="ds-chart-slider-track" style="margin:0"><div id="ds-slider-cost-thumb" class="ds-chart-slider-thumb"><div class="ds-slider-handle ds-slider-handle-left"></div><div class="ds-slider-handle ds-slider-handle-right"></div></div></div><div id="ds-slider-cost-label" class="ds-chart-slider-label"></div></div>' +
+      '<div style="margin-bottom:20px"><div style="font-size:12px;color:#9ca3af;font-weight:500;margin-bottom:8px;display:flex;align-items:center;gap:4px;flex-wrap:wrap">图3 · 缓存命中率趋势<span id="ds-toggle-rate" style="font-size:10px;padding:2px 7px;border-radius:3px;background:#374151;color:#9ca3af;cursor:pointer">轮次</span><select id="ds-month-rate" style="font-size:11px;padding:2px 6px;border-radius:4px;background:#1e293b;color:#93c5fd;border:1px solid #6366f1;display:none;cursor:pointer;font-family:system-ui,-apple-system,sans-serif"></select></div><div style="position:relative;height:40vh;min-height:280px"><canvas id="ds-chart-rate"></canvas></div><div id="ds-slider-rate-track" class="ds-chart-slider-track" style="margin:0"><div id="ds-slider-rate-thumb" class="ds-chart-slider-thumb"><div class="ds-slider-handle ds-slider-handle-left"></div><div class="ds-slider-handle ds-slider-handle-right"></div></div></div><div id="ds-slider-rate-label" class="ds-chart-slider-label"></div></div>' +
+      '<div style="margin-bottom:20px"><div style="font-size:12px;color:#9ca3af;font-weight:500;margin-bottom:8px;display:flex;align-items:center;gap:4px;flex-wrap:wrap">图4 · API请求次数趋势<select id="ds-month-requests" style="font-size:11px;padding:2px 6px;border-radius:4px;background:#1e293b;color:#93c5fd;border:1px solid #6366f1;cursor:pointer;font-family:system-ui,-apple-system,sans-serif"></select></div><div style="position:relative;height:40vh;min-height:280px"><canvas id="ds-chart-requests"></canvas></div><div id="ds-slider-requests-track" class="ds-chart-slider-track" style="margin:0"><div id="ds-slider-requests-thumb" class="ds-chart-slider-thumb"><div class="ds-slider-handle ds-slider-handle-left"></div><div class="ds-slider-handle ds-slider-handle-right"></div></div></div><div id="ds-slider-requests-label" class="ds-chart-slider-label"></div></div>' +
     '</div>' +
   '</div>';
   var dsCFB = doc.createElement('div');
@@ -426,6 +428,21 @@ function createChartUI() {
       }
     };
   });
+  ['token','cost','rate'].forEach(function(k) {
+    var el = doc.getElementById('ds-toggle-' + k);
+    if (el) el.addEventListener('click', function() {
+      _chartDayMode[k] = !_chartDayMode[k];
+      el.textContent = _chartDayMode[k] ? '日期' : '轮次';
+      el.style.background = _chartDayMode[k] ? '#6366f1' : '#374151';
+      el.style.color = _chartDayMode[k] ? '#fff' : '#9ca3af';
+      if (!_chartDayMode[k]) { _chartMonthIdx[k] = -1; }
+      renderCharts();
+    });
+  });
+  ['token','cost','rate','requests'].forEach(function(k) {
+    var sel = doc.getElementById('ds-month-' + k);
+    if (sel) sel.addEventListener('change', function() { selectMonth(k, this.value); });
+  });
 }
 
 // ===== 更新图表模型选择器高亮样式 =====
@@ -446,25 +463,61 @@ function updateChartModelSelection() {
 }
 
 // ===== 图表实例缓存 =====
-var _chartInstances = { token: null, cost: null, rate: null };
+var _chartInstances = { token: null, cost: null, rate: null, requests: null };
+// ===== 图表日视图模式开关（false=轮次，true=日期） =====
+var _chartDayMode = { token: false, cost: false, rate: false, requests: true };
+// ===== 图表当前显示的月份索引（-1=最新月份） =====
+var _chartMonthIdx = { token: -1, cost: -1, rate: -1, requests: -1 };
+// ===== 缓存最近一次聚合的日数据，供月份导航使用 =====
+var _dayAggCache = null;
+// ===== 按自然日聚合数据 =====
+function aggregateByDay(entries) {
+  var dayMap = {};
+  entries.forEach(function(e) {
+    var key = new Date(e.timestamp).toISOString().slice(0, 10);
+    if (!dayMap[key]) dayMap[key] = { count: 0, total_tokens: 0, cost: 0, cache_hit_tokens: 0, cache_miss_tokens: 0, completion_tokens: 0, input_cost: 0, output_cost: 0, prompt_tokens: 0 };
+    var d = dayMap[key];
+    d.count++;
+    d.total_tokens += e.total_tokens || 0;
+    d.cost += e.cost || 0;
+    d.cache_hit_tokens += e.cache_hit_tokens || 0;
+    d.cache_miss_tokens += e.cache_miss_tokens || 0;
+    d.completion_tokens += e.completion_tokens || 0;
+    d.input_cost += e.input_cost || 0;
+    d.output_cost += e.output_cost || 0;
+    d.prompt_tokens += e.prompt_tokens || 0;
+  });
+  var keys = Object.keys(dayMap).sort();
+  if (keys.length === 0) return { labels: [], keys: [], data: [] };
+  var minD = new Date(keys[0] + 'T00:00:00Z');
+  var maxD = new Date(keys[keys.length - 1] + 'T00:00:00Z');
+  var startD = new Date(Date.UTC(minD.getUTCFullYear(), minD.getUTCMonth(), 1));
+  var endD = new Date(Date.UTC(maxD.getUTCFullYear(), maxD.getUTCMonth() + 1, 0));
+  var filledKeys = [], cur = new Date(startD);
+  while (cur <= endD) { filledKeys.push(cur.toISOString().slice(0, 10)); cur.setUTCDate(cur.getUTCDate() + 1); }
+  var emptyRec = function() { return { count:0, total_tokens:0, cost:0, cache_hit_tokens:0, cache_miss_tokens:0, completion_tokens:0, input_cost:0, output_cost:0, prompt_tokens:0 }; };
+  var fmtLabels = filledKeys.map(function(k) { var p = k.split('-'); return parseInt(p[1]) + '/' + parseInt(p[2]); });
+  return { labels: fmtLabels, keys: filledKeys, data: filledKeys.map(function(k) { return dayMap[k] || emptyRec(); }) };
+}
 
 // ===== 重置所有图表缩放 =====
 function resetChartZoom() {
   if (_chartInstances.token) _chartInstances.token.resetZoom();
   if (_chartInstances.cost) _chartInstances.cost.resetZoom();
   if (_chartInstances.rate) _chartInstances.rate.resetZoom();
+  if (_chartInstances.requests) _chartInstances.requests.resetZoom();
 }
 
 
 
 // ===== 图表底部滑块状态 =====
-var _chartSliders={token:{total:0,viewStart:0,viewEnd:0,trackEl:null,thumbEl:null,labelEl:null,dragging:null,dragOffset:0,dragStartVS:0,dragStartVE:0},cost:{total:0,viewStart:0,viewEnd:0,trackEl:null,thumbEl:null,labelEl:null,dragging:null,dragOffset:0,dragStartVS:0,dragStartVE:0},rate:{total:0,viewStart:0,viewEnd:0,trackEl:null,thumbEl:null,labelEl:null,dragging:null,dragOffset:0,dragStartVS:0,dragStartVE:0}};
+var _chartSliders={token:{total:0,viewStart:0,viewEnd:0,trackEl:null,thumbEl:null,labelEl:null,dragging:null,dragOffset:0,dragStartVS:0,dragStartVE:0},cost:{total:0,viewStart:0,viewEnd:0,trackEl:null,thumbEl:null,labelEl:null,dragging:null,dragOffset:0,dragStartVS:0,dragStartVE:0},rate:{total:0,viewStart:0,viewEnd:0,trackEl:null,thumbEl:null,labelEl:null,dragging:null,dragOffset:0,dragStartVS:0,dragStartVE:0},requests:{total:0,viewStart:0,viewEnd:0,trackEl:null,thumbEl:null,labelEl:null,dragging:null,dragOffset:0,dragStartVS:0,dragStartVE:0}};
 // ===== 初始化图表滑块 =====
-function initChartSliders(){var p=window.parent||window;var doc=p.document;["token","cost","rate"].forEach(function(key){var track=doc.getElementById("ds-slider-"+key+"-track");var thumb=doc.getElementById("ds-slider-"+key+"-thumb");var label=doc.getElementById("ds-slider-"+key+"-label");if(!track||!thumb||!label)return;var s=_chartSliders[key];s.trackEl=track;s.thumbEl=thumb;s.labelEl=label;var chart=_chartInstances[key];if(!chart)return;var total=chart.data.labels.length;var min=chart.scales.x.options.min!==undefined?chart.scales.x.options.min:0;var max=chart.scales.x.options.max!==undefined?chart.scales.x.options.max:total-1;s.total=total;s.viewStart=Math.max(0,Math.round(min));s.viewEnd=Math.min(total-1,Math.round(max));updateSliderVisual(key);thumb.addEventListener("pointerdown",function(e){onSliderPointerDown(e,key);});track.addEventListener("click",function(e){onSliderTrackClick(e,key);});});}
+function initChartSliders(){var p=window.parent||window;var doc=p.document;["token","cost","rate","requests"].forEach(function(key){var track=doc.getElementById("ds-slider-"+key+"-track");var thumb=doc.getElementById("ds-slider-"+key+"-thumb");var label=doc.getElementById("ds-slider-"+key+"-label");if(!track||!thumb||!label)return;var s=_chartSliders[key];s.trackEl=track;s.thumbEl=thumb;s.labelEl=label;var chart=_chartInstances[key];if(!chart)return;var total=chart.data.labels.length;var min=chart.scales.x.options.min!==undefined?chart.scales.x.options.min:0;var max=chart.scales.x.options.max!==undefined?chart.scales.x.options.max:total-1;s.total=total;s.viewStart=Math.max(0,Math.round(min));s.viewEnd=Math.min(total-1,Math.round(max));updateSliderVisual(key);thumb.addEventListener("pointerdown",function(e){onSliderPointerDown(e,key);});track.addEventListener("click",function(e){onSliderTrackClick(e,key);});});}
 // ===== 更新滑块视觉位置 =====
 function updateSliderVisual(key){var s=_chartSliders[key];if(!s||!s.trackEl||!s.thumbEl||!s.labelEl||s.total<=0)return;var tw=s.trackEl.clientWidth;if(tw<=0)return;var left=(s.viewStart/s.total)*tw;var width=Math.max(16,((s.viewEnd-s.viewStart+1)/s.total)*tw);s.thumbEl.style.left=left+"px";s.thumbEl.style.width=width+"px";s.labelEl.textContent="#"+(s.viewStart+1)+"~#"+(s.viewEnd+1)+" ("+(s.viewEnd-s.viewStart+1)+"/"+s.total+")";}
 // ===== 图表缩放后同步滑块 =====
-function syncSliderFromChart(chart){var key=null;if(chart===_chartInstances.token)key="token";else if(chart===_chartInstances.cost)key="cost";else if(chart===_chartInstances.rate)key="rate";if(!key)return;var s=_chartSliders[key];var total=chart.data.labels.length;var min=chart.scales.x.options.min!==undefined?chart.scales.x.options.min:0;var max=chart.scales.x.options.max!==undefined?chart.scales.x.options.max:total-1;s.total=total;s.viewStart=Math.max(0,Math.round(min));s.viewEnd=Math.min(total-1,Math.round(max));updateSliderVisual(key);}
+function syncSliderFromChart(chart){var key=null;if(chart===_chartInstances.token)key="token";else if(chart===_chartInstances.cost)key="cost";else if(chart===_chartInstances.rate)key="rate";else if(chart===_chartInstances.requests)key="requests";if(!key)return;var s=_chartSliders[key];var total=chart.data.labels.length;var min=chart.scales.x.options.min!==undefined?chart.scales.x.options.min:0;var max=chart.scales.x.options.max!==undefined?chart.scales.x.options.max:total-1;s.total=total;s.viewStart=Math.max(0,Math.round(min));s.viewEnd=Math.min(total-1,Math.round(max));updateSliderVisual(key);}
 // ===== 滑块拖动后同步图表 =====
 function syncChartFromSlider(key){var s=_chartSliders[key];var chart=_chartInstances[key];if(!chart)return;chart.options.scales.x.min=s.viewStart;chart.options.scales.x.max=s.viewEnd;chart.update("none");}
 // ===== 滑块指针按下（开始拖动或调整范围） =====
@@ -487,7 +540,54 @@ function onSliderMouseUp(){var s=_chartSlider;s.dragging=null;s.doc.removeEventL
 function onSliderTrackClick(e){var s=_chartSlider;if(s.dragging)return;var tr=s.trackEl.getBoundingClientRect();var cX=e.clientX-tr.left;var cI=Math.round((cX/tr.width)*s.total);var vc=s.viewEnd-s.viewStart+1;var nVS=Math.round(cI-vc/2);nVS=Math.max(0,Math.min(s.total-vc,nVS));s.viewStart=nVS;s.viewEnd=nVS+vc-1;updateSliderVisual();syncChartsFromSlider();}
 
 
-// ===== 渲染统计图表（Token 趋势、费用趋势、缓存命中率） =====
+// ===== 月份导航：将图表缩放到指定月份 =====
+function zoomToMonth(chart, agg, monthIdx) {
+  if (!chart || !agg || !agg.keys || agg.keys.length === 0) return;
+  var months = []; agg.keys.forEach(function(k) { var m = k.slice(0, 7); if (months.indexOf(m) === -1) months.push(m); });
+  if (months.length <= 1) return;
+  if (monthIdx < 0) monthIdx = months.length - 1;
+  if (monthIdx >= months.length) monthIdx = months.length - 1;
+  var target = months[monthIdx];
+  var startIdx = -1, endIdx = -1;
+  agg.keys.forEach(function(k, idx) { if (k.slice(0, 7) === target) { if (startIdx === -1) startIdx = idx; endIdx = idx; } });
+  if (startIdx === -1) return;
+  chart.options.scales.x.min = Math.max(0, startIdx - 0.5);
+  chart.options.scales.x.max = Math.min(agg.keys.length - 1, endIdx + 0.5);
+  chart.update();
+  syncSliderFromChart(chart);
+}
+// ===== 选择月份 =====
+function selectMonth(key, monthStr) {
+  var chart = _chartInstances[key];
+  if (!chart || !_dayAggCache) return;
+  var agg = _dayAggCache;
+  var months = []; agg.keys.forEach(function(k) { var m = k.slice(0, 7); if (months.indexOf(m) === -1) months.push(m); });
+  var idx = months.indexOf(monthStr);
+  if (idx === -1) return;
+  _chartMonthIdx[key] = idx;
+  zoomToMonth(chart, agg, idx);
+}
+// ===== 填充月份选择器下拉框 =====
+function populateMonthSelects(agg) {
+  if (!agg || !agg.keys || agg.keys.length === 0) return;
+  var months = []; agg.keys.forEach(function(k) { var m = k.slice(0, 7); if (months.indexOf(m) === -1) months.push(m); });
+  var p = window.parent || window;
+  var doc = p.document;
+  ['token','cost','rate','requests'].forEach(function(k) {
+    var sel = doc.getElementById('ds-month-' + k);
+    if (!sel) return;
+    sel.innerHTML = '';
+    months.forEach(function(m) {
+      var opt = doc.createElement('option');
+      opt.value = m;
+      opt.textContent = m;
+      sel.appendChild(opt);
+    });
+    sel.value = months[_chartMonthIdx[k] >= 0 && _chartMonthIdx[k] < months.length ? _chartMonthIdx[k] : months.length - 1];
+    if (k === 'requests') { sel.style.display = 'inline-block'; } else { sel.style.display = _chartDayMode[k] ? 'inline-block' : 'none'; }
+  });
+}
+// ===== 渲染统计图表（Token 趋势、费用趋势、缓存命中率、API请求次数） =====
 function renderCharts() {
   var p = window.parent || window;
   var doc = p.document;
@@ -521,135 +621,180 @@ function renderCharts() {
     doc.getElementById('ds-chart-container').style.display = 'none';
     return;
   }
+  // ===== 轮次模式数据（按单个对话） =====
   var labels = filtered.map(function(_, idx) { return '#' + (idx + 1); });
   var hitTokens = filtered.map(function(d) { return d.cache_hit_tokens || 0; });
   var missTokens = filtered.map(function(d) { return d.cache_miss_tokens || 0; });
   var compTokens = filtered.map(function(d) { return d.completion_tokens || 0; });
   var totalTokens = filtered.map(function(d) { return d.total_tokens || 0; });
-  var totalInput = filtered.map(function(d) { return (d.cache_hit_tokens || 0) + (d.cache_miss_tokens || 0); });
-  function getHitCost(d) {
-    var total = (d.cache_hit_tokens || 0) + (d.cache_miss_tokens || 0);
-    return total > 0 ? (d.input_cost || 0) * (d.cache_hit_tokens / total) : 0;
-  }
-  function getMissCost(d) {
-    var total = (d.cache_hit_tokens || 0) + (d.cache_miss_tokens || 0);
-    return total > 0 ? (d.input_cost || 0) * (d.cache_miss_tokens / total) : 0;
-  }
+  function getHitCost(d) { var total = (d.cache_hit_tokens || 0) + (d.cache_miss_tokens || 0); return total > 0 ? (d.input_cost || 0) * (d.cache_hit_tokens / total) : 0; }
+  function getMissCost(d) { var total = (d.cache_hit_tokens || 0) + (d.cache_miss_tokens || 0); return total > 0 ? (d.input_cost || 0) * (d.cache_miss_tokens / total) : 0; }
   var hitCost = filtered.map(getHitCost);
   var missCost = filtered.map(getMissCost);
   var outputCost = filtered.map(function(d) { return d.output_cost || 0; });
   var totalCost = filtered.map(function(d) { return d.cost || 0; });
+  var hitRateData = filtered.map(function(d) { return d.cache_hit_tokens > 0 && (d.cache_hit_tokens + d.cache_miss_tokens) > 0 ? (d.cache_hit_tokens / (d.cache_hit_tokens + d.cache_miss_tokens) * 100) : 0; });
+  // ===== 日期模式数据（按自然日聚合） =====
+  var dayAgg = aggregateByDay(filtered);
+  var dayLabels = dayAgg.labels, dD = dayAgg.data;
+  var dayHitT = dD.map(function(d){return d.cache_hit_tokens;});
+  var dayMissT = dD.map(function(d){return d.cache_miss_tokens;});
+  var dayCompT = dD.map(function(d){return d.completion_tokens;});
+  var dayTotalT = dD.map(function(d){return d.total_tokens;});
+  var dayHitC = dD.map(function(d){return d.prompt_tokens>0?d.input_cost*(d.cache_hit_tokens/d.prompt_tokens):0;});
+  var dayMissC = dD.map(function(d){return d.prompt_tokens>0?d.input_cost*(d.cache_miss_tokens/d.prompt_tokens):0;});
+  var dayOutC = dD.map(function(d){return d.output_cost;});
+  var dayTotalC = dD.map(function(d){return d.cost;});
+  var dayHitRate = dD.map(function(d){return d.prompt_tokens>0?d.cache_hit_tokens/d.prompt_tokens*100:0;});
+  var dayReqCount = dD.map(function(d){return d.count;});
+  // ===== 公共变量 =====
   var fontFam = "'system-ui', '-apple-system', sans-serif";
   var zR=filtered.length>20?{l:filtered.length-20.4,r:filtered.length-1+0.4}:null;
-  if (_chartInstances.token) { _chartInstances.token.destroy(); _chartInstances.token = null; }
-  if (_chartInstances.cost) { _chartInstances.cost.destroy(); _chartInstances.cost = null; }
+  ['token','cost','rate','requests'].forEach(function(k){if(_chartInstances[k]){_chartInstances[k].destroy();_chartInstances[k]=null;}});
+  // ===== 工具：根据模式选取数据集 =====
+  function pick(modeKey, roundArr, dayArr) { return _chartDayMode[modeKey] ? dayArr : roundArr; }
+  function srcData(modeKey) { return _chartDayMode[modeKey] ? dD : filtered; }
+  // ===== 图1 · Token 趋势 =====
   var ctx1 = doc.getElementById('ds-chart-token');
   if (ctx1) {
     ctx1 = ctx1.getContext('2d');
     if (ctx1) {
+      var tUseDay = _chartDayMode.token;
       _chartInstances.token = new Chart(ctx1, {
         type: 'bar',
         data: {
-          labels: labels,
+          labels: pick('token', labels, dayLabels),
           datasets: [
-            { label: '命中缓存 Token', data: hitTokens, backgroundColor: 'rgba(52,211,153,0.7)', borderColor: '#34d399', borderWidth: 1, borderRadius: 2, order: 2 },
-            { label: '未命中缓存 Token', data: missTokens, backgroundColor: 'rgba(252,165,165,0.7)', borderColor: '#fca5a5', borderWidth: 1, borderRadius: 2, order: 2 },
-            { label: '输出 Token', data: compTokens, backgroundColor: 'rgba(165,180,252,0.7)', borderColor: '#a5b4fc', borderWidth: 1, borderRadius: 2, order: 2 },
-            { label: 'Token 总消耗', data: totalTokens, type: 'line', borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.1)', borderWidth: 2, pointRadius: 2, pointBackgroundColor: '#fbbf24', fill: false, tension: 0.3, order: 1 }
+            { label: '命中缓存 Token', data: pick('token', hitTokens, dayHitT), backgroundColor: 'rgba(52,211,153,0.7)', borderColor: '#34d399', borderWidth: 1, borderRadius: 2, order: 2 },
+            { label: '未命中缓存 Token', data: pick('token', missTokens, dayMissT), backgroundColor: 'rgba(252,165,165,0.7)', borderColor: '#fca5a5', borderWidth: 1, borderRadius: 2, order: 2 },
+            { label: '输出 Token', data: pick('token', compTokens, dayCompT), backgroundColor: 'rgba(165,180,252,0.7)', borderColor: '#a5b4fc', borderWidth: 1, borderRadius: 2, order: 2 },
+            { label: 'Token 总消耗', data: pick('token', totalTokens, dayTotalT), type: 'line', borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.1)', borderWidth: 2, pointRadius: 2, pointBackgroundColor: '#fbbf24', fill: false, tension: 0.3, order: 1 }
           ]
         },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
+          responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
           plugins: {
-             legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
-             tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = filtered[idx]; if (!d) return []; var t = new Date(d.timestamp).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return ['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]; } } },
-             zoom: {
-               pan: { enabled: true, mode: 'x' },
-               zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' },onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)},onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)}
-             }
-           },
-           scales: {
-             x: { min:zR?zR.l:void 0,max:zR?zR.r:void 0,stacked: true, ticks: { color: '#6b7280', font: { family: fontFam }, maxTicksLimit: 20 }, grid: { color: 'rgba(55,65,81,0.4)' }, title: { display: true, text: '对话轮次', color: '#6b7280', font: { size: 11, family: fontFam } } },
-             y: { stacked: true, ticks: { color: '#6b7280', font: { family: fontFam } }, grid: { color: 'rgba(55,65,81,0.4)' }, beginAtZero: true }
-           }
+            legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
+            tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = srcData('token')[idx]; if (!d) return []; var t = new Date(d.timestamp?d.timestamp:dD[idx]?Date.now():0).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return ['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]; } } },
+            zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' }, onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)}, onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)} }
+          },
+          scales: {
+            x: tUseDay?{stacked:true,ticks:{color:'#6b7280',font:{family:fontFam},maxTicksLimit:20},grid:{color:'rgba(55,65,81,0.4)'},title:{display:true,text:'日期',color:'#6b7280',font:{size:11,family:fontFam}}}:{min:zR?zR.l:void 0,max:zR?zR.r:void 0,stacked:true,ticks:{color:'#6b7280',font:{family:fontFam},maxTicksLimit:20},grid:{color:'rgba(55,65,81,0.4)'},title:{display:true,text:'对话轮次',color:'#6b7280',font:{size:11,family:fontFam}}},
+            y: { stacked: true, ticks: { color: '#6b7280', font: { family: fontFam } }, grid: { color: 'rgba(55,65,81,0.4)' }, beginAtZero: true }
+          }
         }
       });
     }
   }
+  // ===== 图2 · 费用趋势 =====
   var ctx2 = doc.getElementById('ds-chart-cost');
   if (ctx2) {
     ctx2 = ctx2.getContext('2d');
     if (ctx2) {
+      var cUseDay = _chartDayMode.cost;
       _chartInstances.cost = new Chart(ctx2, {
         type: 'bar',
         data: {
-          labels: labels,
+          labels: pick('cost', labels, dayLabels),
           datasets: [
-            { label: '命中缓存费用', data: hitCost, backgroundColor: 'rgba(52,211,153,0.7)', borderColor: '#34d399', borderWidth: 1, borderRadius: 2, order: 2 },
-            { label: '未命中缓存费用', data: missCost, backgroundColor: 'rgba(252,165,165,0.7)', borderColor: '#fca5a5', borderWidth: 1, borderRadius: 2, order: 2 },
-            { label: '输出费用', data: outputCost, backgroundColor: 'rgba(165,180,252,0.7)', borderColor: '#a5b4fc', borderWidth: 1, borderRadius: 2, order: 2 },
-            { label: '总消耗费用', data: totalCost, type: 'line', borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.1)', borderWidth: 2, pointRadius: 2, pointBackgroundColor: '#fbbf24', fill: false, tension: 0.3, order: 1 }
+            { label: '命中缓存费用', data: pick('cost', hitCost, dayHitC), backgroundColor: 'rgba(52,211,153,0.7)', borderColor: '#34d399', borderWidth: 1, borderRadius: 2, order: 2 },
+            { label: '未命中缓存费用', data: pick('cost', missCost, dayMissC), backgroundColor: 'rgba(252,165,165,0.7)', borderColor: '#fca5a5', borderWidth: 1, borderRadius: 2, order: 2 },
+            { label: '输出费用', data: pick('cost', outputCost, dayOutC), backgroundColor: 'rgba(165,180,252,0.7)', borderColor: '#a5b4fc', borderWidth: 1, borderRadius: 2, order: 2 },
+            { label: '总消耗费用', data: pick('cost', totalCost, dayTotalC), type: 'line', borderColor: '#fbbf24', backgroundColor: 'rgba(251,191,36,0.1)', borderWidth: 2, pointRadius: 2, pointBackgroundColor: '#fbbf24', fill: false, tension: 0.3, order: 1 }
           ]
         },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
+          responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
           plugins: {
-             legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
-             tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = filtered[idx]; if (!d) return []; var t = new Date(d.timestamp).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return ['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]; } } },
-             zoom: {
-               pan: { enabled: true, mode: 'x' },
-               zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' },onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)},onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)}
-             }
-           },
-           scales: {
-             x: { min:zR?zR.l:void 0,max:zR?zR.r:void 0,stacked: true, ticks: { color: '#6b7280', font: { family: fontFam }, maxTicksLimit: 20 }, grid: { color: 'rgba(55,65,81,0.4)' }, title: { display: true, text: '对话轮次', color: '#6b7280', font: { size: 11, family: fontFam } } },
-             y: { stacked: true, ticks: { color: '#6b7280', font: { family: fontFam } }, grid: { color: 'rgba(55,65,81,0.4)' }, beginAtZero: true, title: { display: true, text: '费用 (¥)', color: '#6b7280', font: { size: 11, family: fontFam } } }
-           }
+            legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
+            tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = srcData('cost')[idx]; if (!d) return []; var t = new Date(d.timestamp?d.timestamp:dD[idx]?Date.now():0).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return ['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]; } } },
+            zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' }, onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)}, onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)} }
+          },
+          scales: {
+            x: cUseDay?{stacked:true,ticks:{color:'#6b7280',font:{family:fontFam},maxTicksLimit:20},grid:{color:'rgba(55,65,81,0.4)'},title:{display:true,text:'日期',color:'#6b7280',font:{size:11,family:fontFam}}}:{min:zR?zR.l:void 0,max:zR?zR.r:void 0,stacked:true,ticks:{color:'#6b7280',font:{family:fontFam},maxTicksLimit:20},grid:{color:'rgba(55,65,81,0.4)'},title:{display:true,text:'对话轮次',color:'#6b7280',font:{size:11,family:fontFam}}},
+            y: { stacked: true, ticks: { color: '#6b7280', font: { family: fontFam } }, grid: { color: 'rgba(55,65,81,0.4)' }, beginAtZero: true, title: { display: true, text: '费用 (¥)', color: '#6b7280', font: { size: 11, family: fontFam } } }
+          }
         }
       });
     }
   }
+  // ===== 图3 · 缓存命中率趋势 =====
   var ctx3 = doc.getElementById('ds-chart-rate');
   if (ctx3) {
     ctx3 = ctx3.getContext('2d');
     if (ctx3) {
-      var hitRateData = filtered.map(function(d) { return d.cache_hit_tokens > 0 && (d.cache_hit_tokens + d.cache_miss_tokens) > 0 ? (d.cache_hit_tokens / (d.cache_hit_tokens + d.cache_miss_tokens) * 100) : 0; });
+      var rUseDay = _chartDayMode.rate;
       _chartInstances.rate = new Chart(ctx3, {
         type: 'line',
         data: {
-          labels: labels,
+          labels: pick('rate', labels, dayLabels),
           datasets: [
-            { label: '缓存命中率', data: hitRateData, borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.15)', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#34d399', fill: true, tension: 0.3 }
+            { label: '缓存命中率', data: pick('rate', hitRateData, dayHitRate), borderColor: '#34d399', backgroundColor: 'rgba(52,211,153,0.15)', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#34d399', fill: true, tension: 0.3 }
           ]
         },
         options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          interaction: { mode: 'index', intersect: false },
+          responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
           plugins: {
-             legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
-             tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = filtered[idx]; if (!d) return []; var t = new Date(d.timestamp).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return ['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]; } } },
-             zoom: {
-               pan: { enabled: true, mode: 'x' },
-               zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' },onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)},onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)}
-             }
-           },
-           scales: {
-             x: { min:zR?zR.l:void 0,max:zR?zR.r:void 0,ticks: { color: '#6b7280', font: { family: fontFam }, maxTicksLimit: 20 }, grid: { color: 'rgba(55,65,81,0.4)' }, title: { display: true, text: '对话轮次', color: '#6b7280', font: { size: 11, family: fontFam } } },
+            legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
+            tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = srcData('rate')[idx]; if (!d) return []; var t = new Date(d.timestamp?d.timestamp:dD[idx]?Date.now():0).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return ['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]; } } },
+            zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' }, onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)}, onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)} }
+          },
+          scales: {
+            x: rUseDay?{ticks:{color:'#6b7280',font:{family:fontFam},maxTicksLimit:20},grid:{color:'rgba(55,65,81,0.4)'},title:{display:true,text:'日期',color:'#6b7280',font:{size:11,family:fontFam}}}:{min:zR?zR.l:void 0,max:zR?zR.r:void 0,ticks:{color:'#6b7280',font:{family:fontFam},maxTicksLimit:20},grid:{color:'rgba(55,65,81,0.4)'},title:{display:true,text:'对话轮次',color:'#6b7280',font:{size:11,family:fontFam}}},
             y: { ticks: { color: '#6b7280', font: { family: fontFam }, callback: function(value) { return value.toFixed(1) + '%'; } }, grid: { color: 'rgba(55,65,81,0.4)' }, beginAtZero: true, max: 100, title: { display: true, text: '缓存命中率', color: '#6b7280', font: { size: 11, family: fontFam } } }
           }
         }
-      });initChartSliders();
+      });
     }
+  }
+  // ===== 图4 · API请求次数趋势（始终使用日期模式） =====
+  var ctx4 = doc.getElementById('ds-chart-requests');
+  if (ctx4) {
+    ctx4 = ctx4.getContext('2d');
+    if (ctx4) {
+      _chartInstances.requests = new Chart(ctx4, {
+        type: 'bar',
+        data: {
+          labels: dayLabels,
+          datasets: [
+            { label: 'API请求次数', data: dayReqCount, backgroundColor: 'rgba(96,165,250,0.7)', borderColor: '#60a5fa', borderWidth: 1, borderRadius: 2 }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
+            tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var rec = dD[idx]; if (!rec) return []; return ['\u5F53\u65E5\u8BF7\u6C42: ' + rec.count + ' \u6B21']; } } },
+            zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' }, onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)}, onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)} }
+          },
+          scales: {
+            x: {stacked:true,ticks:{color:'#6b7280',font:{family:fontFam},maxTicksLimit:20},grid:{color:'rgba(55,65,81,0.4)'},title:{display:true,text:'日期',color:'#6b7280',font:{size:11,family:fontFam}}},
+            y: { ticks: { color: '#6b7280', font: { family: fontFam } }, grid: { color: 'rgba(55,65,81,0.4)' }, beginAtZero: true, title: { display: true, text: '请求次数', color: '#6b7280', font: { size: 11, family: fontFam } } }
+          }
+        }
+      });
+    }
+  }
+  _dayAggCache = dayAgg;
+  populateMonthSelects(dayAgg);
+  initChartSliders();
+  // 对日期模式的图表应用月份缩放
+  var dayKeys = ['token','cost','rate'];
+  dayKeys.forEach(function(k) {
+    if (_chartDayMode[k] && _chartInstances[k]) {
+      if (_chartMonthIdx[k] < 0) _chartMonthIdx[k] = -1;
+      zoomToMonth(_chartInstances[k], dayAgg, _chartMonthIdx[k]);
+    }
+  });
+  if (_chartInstances.requests) {
+    if (_chartMonthIdx.requests < 0) _chartMonthIdx.requests = -1;
+    zoomToMonth(_chartInstances.requests, dayAgg, _chartMonthIdx.requests);
   }
 }
   
   // ===== 面板切换与 UI 刷新 =====
-  var _ds_last_toggle = 0;                          // 防抖时间戳
+  var _historyPage = 0;                             // 历史记录当前页码
+var _ds_last_toggle = 0;                          // 防抖时间戳
   function togglePanel() { 
     if (!isInitDone) return;
     if (Date.now() - _ds_last_toggle < 300) return;
@@ -670,10 +815,10 @@ function renderCharts() {
       refreshUI(); 
     }
   // ===== 刷新主面板 UI 数据（重新计算并填充 DOM） =====
-  }function refreshUI() { var p = window.parent || window; var doc = p.document; var el = function(id) { return doc.getElementById(id); }; refreshSaveSelect(); var s = getSelectedSave(); if (!s) return; var ltc=0,lic=0,loc=0,lr=0; (s.history||[]).forEach(function(h){var u={timestamp:h.timestamp,model:h.model,prompt_cache_hit_tokens:h.cache_hit_tokens||0,prompt_cache_miss_tokens:h.cache_miss_tokens||0,completion_tokens:h.completion_tokens||0};var c=calcCost(u);h.cost=c.total;h.input_cost=c.input;h.output_cost=c.output;h.priceType=c.priceType;ltc+=c.total;lic+=c.input;loc+=c.output;lr++}); s.total_cost=ltc;s.input_cost=lic;s.output_cost=loc;s.rounds=lr; if (el('ds-save-time')) el('ds-save-time').textContent = state.currentSave === '__all__' ? '' : '开始于 ' + formatStartTime(s.startTime); if (el('ds-total-tokens')) el('ds-total-tokens').textContent = (s.total_tokens || 0).toLocaleString(); if (el('ds-total-cost')) el('ds-total-cost').textContent = '\u00A5' + (s.total_cost || 0).toFixed(4); if (el('ds-total-cache-hit')) el('ds-total-cache-hit').textContent = (s.cache_hit_tokens || 0).toLocaleString(); if (el('ds-total-cache-miss')) el('ds-total-cache-miss').textContent = (s.cache_miss_tokens || 0).toLocaleString(); if (el('ds-total-output')) el('ds-total-output').textContent = (s.output_tokens || 0).toLocaleString(); if (el('ds-rounds')) el('ds-rounds').textContent = '基于 ' + (s.rounds || 0) + ' 轮'; var tp = 0, th = 0; (s.history || []).forEach(function(i) { tp += i.prompt_tokens || 0; th += i.cache_hit_tokens || 0; }); if (el('ds-weighted-rate')) el('ds-weighted-rate').textContent = (tp > 0 ? (th / tp * 100) : 0).toFixed(1) + '%'; if ((s.rounds || 0) > 0) { if (el('ds-avg-tokens')) el('ds-avg-tokens').textContent = Math.round((s.total_tokens || 0) / s.rounds) + ' tokens'; if (el('ds-avg-cost')) el('ds-avg-cost').textContent = '\u00A5' + ((s.total_cost || 0) / s.rounds).toFixed(4); } var sv = (s.cache_hit_tokens || 0) * 0.98 / 1e6; if (el('ds-savings')) el('ds-savings').textContent = '\u00A5' + sv.toFixed(4); if (el('ds-savings-tokens')) el('ds-savings-tokens').textContent = (s.cache_hit_tokens || 0).toLocaleString(); if (el('ds-input-cost')) el('ds-input-cost').textContent = '\u00A5' + (s.input_cost || 0).toFixed(4); if (el('ds-input-tokens')) el('ds-input-tokens').textContent = (s.input_tokens || 0).toLocaleString(); if (el('ds-output-cost')) el('ds-output-cost').textContent = '\u00A5' + (s.output_cost || 0).toFixed(4); if (el('ds-output-tokens')) el('ds-output-tokens').textContent = (s.output_tokens || 0).toLocaleString(); var be = el('ds-balance'); if (be) { var balText = '\u00A5'; if (state.customBalance !== null && state.customBalance !== '') { balText += parseFloat(state.customBalance).toFixed(2) + ' CNY'; } else if (state.balance && state.balance.balance) { balText += parseFloat(state.balance.balance).toFixed(2) + ' ' + state.balance.currency; } else { balText += '0.00 CNY'; } be.textContent = balText; } var rem = el('ds-balance-remaining'); if (rem) { var r = calculateRemainingRounds(s); rem.textContent = r !== null ? '预计还可进行 ' + r + ' 轮对话' : ''; } if (s.history && s.history.length > 0 && el('ds-history')) { el('ds-history').innerHTML = s.history.map(function(i, idx) {
-              var t = new Date(i.timestamp).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'});
+  }function refreshUI() { var p = window.parent || window; var doc = p.document; var el = function(id) { return doc.getElementById(id); }; refreshSaveSelect(); var s = getSelectedSave(); if (!s) return; var ltc=0,lic=0,loc=0,lr=0; (s.history||[]).forEach(function(h){var u={timestamp:h.timestamp,model:h.model,prompt_cache_hit_tokens:h.cache_hit_tokens||0,prompt_cache_miss_tokens:h.cache_miss_tokens||0,completion_tokens:h.completion_tokens||0};var c=calcCost(u);h.cost=c.total;h.input_cost=c.input;h.output_cost=c.output;h.priceType=c.priceType;ltc+=c.total;lic+=c.input;loc+=c.output;lr++}); s.total_cost=ltc;s.input_cost=lic;s.output_cost=loc;s.rounds=lr; if (el('ds-save-time')) el('ds-save-time').textContent = state.currentSave === '__all__' ? '' : '开始于 ' + formatStartTime(s.startTime); if (el('ds-total-tokens')) el('ds-total-tokens').textContent = (s.total_tokens || 0).toLocaleString(); if (el('ds-total-cost')) el('ds-total-cost').textContent = '\u00A5' + (s.total_cost || 0).toFixed(4); if (el('ds-total-cache-hit')) el('ds-total-cache-hit').textContent = (s.cache_hit_tokens || 0).toLocaleString(); if (el('ds-total-cache-miss')) el('ds-total-cache-miss').textContent = (s.cache_miss_tokens || 0).toLocaleString(); if (el('ds-total-output')) el('ds-total-output').textContent = (s.output_tokens || 0).toLocaleString(); if (el('ds-rounds')) el('ds-rounds').textContent = '基于 ' + (s.rounds || 0) + ' 轮'; var tp = 0, th = 0; (s.history || []).forEach(function(i) { tp += i.prompt_tokens || 0; th += i.cache_hit_tokens || 0; }); if (el('ds-weighted-rate')) el('ds-weighted-rate').textContent = (tp > 0 ? (th / tp * 100) : 0).toFixed(1) + '%'; if ((s.rounds || 0) > 0) { if (el('ds-avg-tokens')) el('ds-avg-tokens').textContent = Math.round((s.total_tokens || 0) / s.rounds) + ' tokens'; if (el('ds-avg-cost')) el('ds-avg-cost').textContent = '\u00A5' + ((s.total_cost || 0) / s.rounds).toFixed(4); } var sv = (s.cache_hit_tokens || 0) * 0.98 / 1e6; if (el('ds-savings')) el('ds-savings').textContent = '\u00A5' + sv.toFixed(4); if (el('ds-savings-tokens')) el('ds-savings-tokens').textContent = (s.cache_hit_tokens || 0).toLocaleString(); if (el('ds-input-cost')) el('ds-input-cost').textContent = '\u00A5' + (s.input_cost || 0).toFixed(4); if (el('ds-input-tokens')) el('ds-input-tokens').textContent = (s.input_tokens || 0).toLocaleString(); if (el('ds-output-cost')) el('ds-output-cost').textContent = '\u00A5' + (s.output_cost || 0).toFixed(4); if (el('ds-output-tokens')) el('ds-output-tokens').textContent = (s.output_tokens || 0).toLocaleString(); var be = el('ds-balance'); if (be) { var balText = '\u00A5'; if (state.customBalance !== null && state.customBalance !== '') { balText += parseFloat(state.customBalance).toFixed(2) + ' CNY'; } else if (state.balance && state.balance.balance) { balText += parseFloat(state.balance.balance).toFixed(2) + ' ' + state.balance.currency; } else { balText += '0.00 CNY'; } be.textContent = balText; } var rem = el('ds-balance-remaining'); if (rem) { var r = calculateRemainingRounds(s); rem.textContent = r !== null ? '预计还可进行 ' + r + ' 轮对话' : ''; } var PAGE_SIZE = 20; var totalPages = Math.ceil((s.history.length || 0) / PAGE_SIZE); if (_historyPage >= totalPages) _historyPage = Math.max(0, totalPages - 1); if (_historyPage < 0) _historyPage = 0; var startIdx = _historyPage * PAGE_SIZE; var pageItems = s.history.slice(startIdx, startIdx + PAGE_SIZE); if (s.history && s.history.length > 0 && el('ds-history')) { el('ds-history').innerHTML = pageItems.map(function(i, idx) {
+              var t = new Date(i.timestamp).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
               
-              return '<div style="padding:12px;background:#0e1520;border:1px solid #374151;border-radius:8px;margin-bottom:8px;font-family:system-ui,-apple-system,sans-serif"><div class="ds-history-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:#6b7280;font-weight:500">#' + (s.history.length - 1 - idx) + ' · ' + t + '</span><span class="ds-model-badge" style="font-size:10px;padding:2px 7px;border-radius:4px;background:#312e81;color:#a5b4fc;font-weight:500">' + shortModel(i.model) + '</span></div><div style="display:flex;align-items:center;gap:6px"><span style=\"font-size:13px;color:#f3f4f6;font-weight:600\">¥' + (i.cost ? i.cost.toFixed(4) : '0.0000') + '</span><span class="ds-price-type" style=\"font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px;' + (i.priceType === 'new-peak' ? 'background:#f59e0b;color:#1c1917' : i.priceType === 'new-offpeak' ? 'background:#374151;color:#9ca3af' : 'background:transparent;color:#6b7280') + '\">' + (i.priceType === 'new-peak' ? '高峰' : i.priceType === 'new-offpeak' ? '非高峰' : '旧价格') + '</span><button class="ds-btn-usage" data-ts="' + i.timestamp + '" style="padding:2px 6px;border:1px solid #374151;border-radius:4px;background:transparent;color:#9ca3af;font-size:10px;cursor:pointer;margin-left:4px;font-family:inherit" title="查看完整使用数据">📄</button> <button class=\"ds-btn-compare ds-btn-compare-old\" data-ts="' + i.timestamp + '" style="padding:2px 7px;border:1px solid #374151;border-radius:4px;background:transparent;color:#6366f1;font-size:10px;cursor:pointer;font-family:inherit">旧</button> <button class="ds-btn-compare ds-btn-compare-new" data-ts="' + i.timestamp + '" style="padding:2px 7px;border:1px solid #374151;border-radius:4px;background:transparent;color:#a78bfa;font-size:10px;cursor:pointer;margin-left:4px;font-family:inherit">新</button></div></div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="text-align:center"><div style="font-size:10px;color:#6b7280;margin-bottom:2px">tokens</div><div style="font-size:16px;font-weight:700;color:#f3f4f6">' + i.total_tokens.toString() + '</div></div><div style="text-align:center"><div style="font-size:10px;color:#93c5fd;margin-bottom:2px">输入</div><div style="font-size:13px;font-weight:600;color:#93c5fd">' + i.prompt_tokens.toString() + '</div></div><div style="text-align:center"><div style="font-size:10px;color:#a5b4fc;margin-bottom:2px">输出</div><div style="font-size:13px;font-weight:600;color:#a5b4fc">' + i.completion_tokens.toString() + '</div></div></div><div style="background:#060a10;border-radius:4px;height:6px;overflow:hidden;margin-bottom:4px;display:flex"><div style="background:#34d399;width:' + (i.prompt_tokens > 0 ? (i.cache_hit_tokens / i.prompt_tokens * 100) : 0) + '%;height:100%;transition:width 0.3s"></div><div style="background:#fca5a5;width:' + (i.total_tokens > 0 ? (i.cache_miss_tokens / i.total_tokens * 100) : 0) + '%;height:100%;transition:width 0.3s"></div><div style="background:#a5b4fc;width:' + (i.total_tokens > 0 ? (i.completion_tokens / i.total_tokens * 100) : 0) + '%;height:100%;transition:width 0.3s"></div></div><div style="display:flex;justify-content:space-between;align-items:center;font-size:10px"><div style="display:flex;gap:8px"><span style="color:#34d399;font-weight:500">' + (i.total_tokens > 0 ? (i.cache_hit_tokens / i.prompt_tokens * 100).toFixed(1) : '0.0') + '% 命中</span><span style="color:#fca5a5;font-weight:500">' + (i.total_tokens > 0 ? (i.cache_miss_tokens / i.total_tokens * 100).toFixed(1) : '0.0') + '% 未命中</span><span style="color:#a5b4fc;font-weight:500">' + (i.total_tokens > 0 ? (i.completion_tokens / i.total_tokens * 100).toFixed(1) : '0.0') + '% 输出</span></div><span style="color:#6b7280">¥' + (i.input_cost ? i.input_cost.toFixed(4) : '0.0000') + ' · ¥' + (i.output_cost ? i.output_cost.toFixed(4) : '0.0000') + '</span></div></div>'; }).join(''); } else if (el('ds-history')) { el('ds-history').innerHTML = '<div style="text-align:center;padding:16px;color:#6b7280;font-weight:500;font-size:13px">暂无历史记录</div>'; } }
+              return '<div style="padding:12px;background:#0e1520;border:1px solid #374151;border-radius:8px;margin-bottom:8px;font-family:system-ui,-apple-system,sans-serif"><div class="ds-history-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div style="display:flex;align-items:center;gap:8px"><span style="font-size:11px;color:#6b7280;font-weight:500">#' + (s.history.length - 1 - (startIdx + idx)) + ' · ' + t + '</span><span class="ds-model-badge" style="font-size:10px;padding:2px 7px;border-radius:4px;background:#312e81;color:#a5b4fc;font-weight:500">' + shortModel(i.model) + '</span></div><div style="display:flex;align-items:center;gap:6px"><span style=\"font-size:13px;color:#f3f4f6;font-weight:600\">¥' + (i.cost ? i.cost.toFixed(4) : '0.0000') + '</span><span class="ds-price-type" style=\"font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px;' + (i.priceType === 'new-peak' ? 'background:#f59e0b;color:#1c1917' : i.priceType === 'new-offpeak' ? 'background:#374151;color:#9ca3af' : 'background:transparent;color:#6b7280') + '\">' + (i.priceType === 'new-peak' ? '高峰' : i.priceType === 'new-offpeak' ? '非高峰' : '旧价格') + '</span><button class="ds-btn-usage" data-ts="' + i.timestamp + '" style="padding:2px 6px;border:1px solid #374151;border-radius:4px;background:transparent;color:#9ca3af;font-size:10px;cursor:pointer;margin-left:4px;font-family:inherit" title="查看完整使用数据">📄</button> <button class=\"ds-btn-compare ds-btn-compare-old\" data-ts="' + i.timestamp + '" style="padding:2px 7px;border:1px solid #374151;border-radius:4px;background:transparent;color:#6366f1;font-size:10px;cursor:pointer;font-family:inherit">旧</button> <button class="ds-btn-compare ds-btn-compare-new" data-ts="' + i.timestamp + '" style="padding:2px 7px;border:1px solid #374151;border-radius:4px;background:transparent;color:#a78bfa;font-size:10px;cursor:pointer;margin-left:4px;font-family:inherit">新</button></div></div><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="text-align:center"><div style="font-size:10px;color:#6b7280;margin-bottom:2px">tokens</div><div style="font-size:16px;font-weight:700;color:#f3f4f6">' + i.total_tokens.toString() + '</div></div><div style="text-align:center"><div style="font-size:10px;color:#93c5fd;margin-bottom:2px">输入</div><div style="font-size:13px;font-weight:600;color:#93c5fd">' + i.prompt_tokens.toString() + '</div></div><div style="text-align:center"><div style="font-size:10px;color:#a5b4fc;margin-bottom:2px">输出</div><div style="font-size:13px;font-weight:600;color:#a5b4fc">' + i.completion_tokens.toString() + '</div></div></div><div style="background:#060a10;border-radius:4px;height:6px;overflow:hidden;margin-bottom:4px;display:flex"><div style="background:#34d399;width:' + (i.prompt_tokens > 0 ? (i.cache_hit_tokens / i.prompt_tokens * 100) : 0) + '%;height:100%;transition:width 0.3s"></div><div style="background:#fca5a5;width:' + (i.total_tokens > 0 ? (i.cache_miss_tokens / i.total_tokens * 100) : 0) + '%;height:100%;transition:width 0.3s"></div><div style="background:#a5b4fc;width:' + (i.total_tokens > 0 ? (i.completion_tokens / i.total_tokens * 100) : 0) + '%;height:100%;transition:width 0.3s"></div></div><div style="display:flex;justify-content:space-between;align-items:center;font-size:10px"><div style="display:flex;gap:8px"><span style="color:#34d399;font-weight:500">' + (i.total_tokens > 0 ? (i.cache_hit_tokens / i.prompt_tokens * 100).toFixed(1) : '0.0') + '% 命中</span><span style="color:#fca5a5;font-weight:500">' + (i.total_tokens > 0 ? (i.cache_miss_tokens / i.total_tokens * 100).toFixed(1) : '0.0') + '% 未命中</span><span style="color:#a5b4fc;font-weight:500">' + (i.total_tokens > 0 ? (i.completion_tokens / i.total_tokens * 100).toFixed(1) : '0.0') + '% 输出</span></div><span style="color:#6b7280">¥' + (i.input_cost ? i.input_cost.toFixed(4) : '0.0000') + ' · ¥' + (i.output_cost ? i.output_cost.toFixed(4) : '0.0000') + '</span></div></div>'; }).join('') + (totalPages > 1 ? '<div style="display:flex;justify-content:center;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #374151"><button id="ds-page-prev" style="padding:5px 10px;border:1px solid #374151;border-radius:4px;background:' + (_historyPage > 0 ? '#0e1520;color:#e5e7eb' : 'transparent;color:#4b5563') + ';font-size:11px;cursor:' + (_historyPage > 0 ? 'pointer' : 'default') + ';font-family:system-ui,-apple-system,sans-serif">◀ 上一页</button><span style="font-size:12px;color:#9ca3af;font-weight:500">第 ' + (_historyPage + 1) + '/' + totalPages + ' 页</span><button id="ds-page-next" style="padding:5px 10px;border:1px solid #374151;border-radius:4px;background:' + (_historyPage < totalPages - 1 ? '#0e1520;color:#e5e7eb' : 'transparent;color:#4b5563') + ';font-size:11px;cursor:' + (_historyPage < totalPages - 1 ? 'pointer' : 'default') + ';font-family:system-ui,-apple-system,sans-serif">下一页 ▶</button></div>' : ''); if (totalPages > 1) { (function() { var p = window.parent || window; var d = p.document; var prv = d.getElementById('ds-page-prev'); var nxt = d.getElementById('ds-page-next'); if (prv) prv.onclick = function() { if (_historyPage > 0) { _historyPage--; refreshUI(); } }; if (nxt) nxt.onclick = function() { if (_historyPage < totalPages - 1) { _historyPage++; refreshUI(); } }; })(); } } else if (el('ds-history')) { el('ds-history').innerHTML = '<div style="text-align:center;padding:16px;color:#6b7280;font-weight:500;font-size:13px">暂无历史记录</div>'; } }
   
   
   // ===== 消息差异对比：选择新旧记录（高亮选中状态） =====
@@ -805,7 +950,7 @@ function renderCharts() {
     });
     
      if (!a || !b) { body.innerHTML = '<div class="ds-no-diff">请选择两条包含消息内容的记录</div>'; overlay.style.display = 'block'; panel.classList.add('ds-open'); return; }
-    body.innerHTML = '<div class="ds-compare-info"><span><span class="ds-info-old">旧请求</span> #' + (s.history.indexOf(a) + 1) + ' \u00b7 ' + new Date(a.timestamp).toLocaleTimeString('zh-CN') + ' \u00b7 ' + a.model + '</span><span style="color:#6b7280">\u2192</span><span><span class="ds-info-new">新请求</span> #' + (s.history.indexOf(b) + 1) + ' \u00b7 ' + new Date(b.timestamp).toLocaleTimeString('zh-CN') + ' \u00b7 ' + b.model + '</span></div>';
+    body.innerHTML = '<div class="ds-compare-info"><span><span class="ds-info-old">旧请求</span> #' + (s.history.indexOf(a) + 1) + ' \u00b7 ' + new Date(a.timestamp).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) + ' \u00b7 ' + a.model + '</span><span style="color:#6b7280">\u2192</span><span><span class="ds-info-new">新请求</span> #' + (s.history.indexOf(b) + 1) + ' \u00b7 ' + new Date(b.timestamp).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) + ' \u00b7 ' + b.model + '</span></div>';
     var diffs = generateDiff(a, b);
     diffs.forEach(function(html) { body.insertAdjacentHTML('beforeend', html); });
     overlay.style.display = 'block';
