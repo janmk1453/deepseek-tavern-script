@@ -29,8 +29,8 @@
 
 | 文件 | 说明 | 推荐 |
 |------|------|------|
-| `DeepSeek_Statistic_auto_update.json` | 自动更新版（GitHub Pages），导入后自动获取最新脚本 | 境外用户推荐 |
-| `DeepSeek_Statistic_auto_update_jsDelivr_cdn.json` | 自动更新版（jsDelivr CDN），导入后自动获取最新脚本 | ✅ 国内用户推荐 |
+| `DeepSeek_Statistic_auto_update.json` | 自动更新版（GitHub Pages），导入后自动获取最新脚本 | ✅推荐 |
+| `DeepSeek_Statistic_auto_update_jsDelivr_cdn.json` | 自动更新版（jsDelivr CDN），导入后自动获取最新脚本 | 该渠道更新较慢，但国内网络适应性强 |
 | `DeepSeek_Statistic_VX.XX.json` | 完整版脚本，需手动导入 | 需要特定版本时使用 |
 
 ## 使用方法
@@ -121,7 +121,7 @@
 ## 已知问题
 
 - 浏览器窗口比例接近 1:1 时面板可能错位
-- GitHub Pages 缓存导致自动更新存在延迟
+- GitHub Pages 缓存导致自动更新存在十分钟左右延迟，jsDelivr CDN存在超过24小时的延迟
 
 ## 技术说明
 
