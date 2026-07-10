@@ -9,7 +9,7 @@ SillyTavern Tavern Helper script that tracks DeepSeek API usage (tokens, cost, c
 ## Files
 
 - `DeepSeek使用预测.js` — Source of truth (IIFE). Edit this file.
-- `DeepSeek_Statistic_VX.XX.json` — Packaged JSON for manual import; copy & rename from previous version on release. `content` must stay in sync with JS.
+- `DeepSeek_Statistic_V2.18.json` — Packaged JSON for manual import; copy & rename from previous version on release. `content` must stay in sync with JS.
 - `DeepSeek_Statistic_auto_update.json` — Auto-update loader (GitHub Pages). Only touch if URL changes.
 - `DeepSeek_Statistic_auto_update_jsDelivr_cdn.json` — Auto-update loader (jsDelivr CDN). Only touch if URL changes.
 - `README.md` — Docs; update changelog in lockstep.
@@ -20,9 +20,9 @@ SillyTavern Tavern Helper script that tracks DeepSeek API usage (tokens, cost, c
 2. Bump `_ds_current_version` variable (e.g. `"X.XX"`)
 3. **Sync JSON** — extract the IIFE into the versioned JSON's `content` field:
    ```bash
-    node -e "var f=require('fs');var js=f.readFileSync('DeepSeek使用预测.js','utf8');var i=js.indexOf('(function()');var json=JSON.parse(f.readFileSync('DeepSeek_Statistic_VX.XX.json','utf8'));json.content=js.substring(i);f.writeFileSync('DeepSeek_Statistic_VX.XX.json',JSON.stringify(json,null,2)+'\n');console.log('synced')"
+    node -e "var f=require('fs');var js=f.readFileSync('DeepSeek使用预测.js','utf8');var i=js.indexOf('(function()');var json=JSON.parse(f.readFileSync('DeepSeek_Statistic_V2.18.json','utf8'));json.content=js.substring(i);f.writeFileSync('DeepSeek_Statistic_V2.18.json',JSON.stringify(json,null,2)+'\n');console.log('synced')"
     ```
-4. Validate: `node --check DeepSeek使用预测.js` and `node -e "new Function(JSON.parse(require('fs').readFileSync('DeepSeek_Statistic_VX.XX.json','utf8')).content);console.log('valid')"`
+4. Validate: `node --check DeepSeek使用预测.js` and `node -e "new Function(JSON.parse(require('fs').readFileSync('DeepSeek_Statistic_V2.18.json','utf8')).content);console.log('valid')"`
 5. Update `README.md` changelog if needed
 6. Commit and push to `main`
 
@@ -46,11 +46,11 @@ git checkout main
 ## Release
 
 ```bash
-# 1. 创建 release（用实际内容替换 <changelog>）
-gh release create vX.XX --title "release X.XX" --notes "<changelog>"
+# 1. 创建 release
+gh release create v2.18 --title "release 2.18" --notes "<changelog>"
 
 # 2. 上传资产（--clobber 允许覆盖已有文件）
-gh release upload vX.XX --clobber "DeepSeek_Statistic_VX.XX.json" "DeepSeek_Statistic_auto_update.json" "DeepSeek_Statistic_auto_update_jsDelivr_cdn.json"
+gh release upload v2.18 --clobber "DeepSeek_Statistic_V2.18.json" "DeepSeek_Statistic_auto_update.json" "DeepSeek_Statistic_auto_update_jsDelivr_cdn.json"
 
 # 3. 刷新 jsDelivr CDN 缓存
 Invoke-RestMethod -Uri "https://purge.jsdelivr.net/gh/janmk1453/deepseek-tavern-script@gh-pages/DeepSeek%E4%BD%BF%E7%94%A8%E9%A2%84%E6%B5%8B.js" -Method Get | Out-Null
@@ -61,7 +61,7 @@ Invoke-RestMethod -Uri "https://purge.jsdelivr.net/gh/janmk1453/deepseek-tavern-
 Release notes 必须遵循以下固定格式：
 
 ```markdown
-## X.XX 更新内容
+## 2.18 更新内容
 
 ### 新增功能
 - ...
@@ -78,7 +78,7 @@ Release notes 必须遵循以下固定格式：
 
 | 文件 | 说明 | 推荐 |
 |------|------|------|
-| \DeepSeek_Statistic_VX.XX.json\ | 完整版脚本，手动导入 | 需要特定版本时使用 |
+| \DeepSeek_Statistic_V2.18.json\ | 完整版脚本，手动导入 | 需要特定版本时使用 |
 | \DeepSeek_Statistic_auto_update.json\ | 自动更新版（GitHub Pages），导入后自动获取最新脚本 | ✅推荐 |
 | \DeepSeek_Statistic_auto_update_jsDelivr_cdn.json\ | 自动更新版（jsDelivr CDN），导入后自动获取最新脚本 | 该渠道更新较慢，但国内网络适应性强 |
 
@@ -88,12 +88,12 @@ Release notes 必须遵循以下固定格式：
 3. 之后每次启动自动获取最新版本，无需手动更新
 
 ### 手动更新使用方法
-1. 下载 \DeepSeek_Statistic_VX.XX.json\
+1. 下载 \DeepSeek_Statistic_V2.18.json\
 2. 在 SillyTavern 中的酒馆助手导入该文件
 3. 每次更新需重新导入
 ```
 
-其中 X.XX 替换为实际版本号，各更新内容章节按实际情况填写，无内容的章节可省略。
+其中 2.18 替换为实际版本号，各更新内容章节按实际情况填写，无内容的章节可省略。
 
 > **jsDelivr cache**: Clears within minutes after push; manual purge at https://www.jsdelivr.com/tools/purge
 
@@ -105,7 +105,7 @@ Release notes 必须遵循以下固定格式：
 - **Pricing** — `PRICING` object at top: `{ offpeak: {...}, peak: {...} }` per model; `isPeakHour()` uses Beijing timezone
 - **Version** — `_ds_current_version` variable near top of JS
 - **API patching** — monkey-patches `fetch` globally to intercept API responses and record usage
-- **Update check** — fetches latest release info from GitHub Releases API
+- **Update check** — fetches latest version from GitHub Pages raw file (not API)
 
 ## Gotchas
 
