@@ -37,15 +37,9 @@
 
 ### 自动更新（推荐）
 
-#### 境外用户（GitHub Pages）
+#### 自动更新
 
 1. 下载 `DeepSeek_Statistic_auto_update.json`
-2. 在 SillyTavern 的酒馆助手中导入该文件
-3. 之后每次启动自动获取最新版本，无需手动更新
-
-#### 国内用户（jsDelivr CDN）
-
-1. 下载 `DeepSeek_Statistic_auto_update_jsDelivr_cdn.json`
 2. 在 SillyTavern 的酒馆助手中导入该文件
 3. 之后每次启动自动获取最新版本，无需手动更新
 
