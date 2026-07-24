@@ -38,7 +38,7 @@
   function isMobile() { var p = window.parent || window; return (p.innerWidth || 768) <= 760; } function syncViewportHeight() { try { var p = window.parent || window; var h = (p.visualViewport && p.visualViewport.height) || p.innerHeight || 640; p.document.documentElement.style.setProperty('--ds-vvh', Math.max(320, Math.round(h)) + 'px'); } catch(e) {} } 
 
 // ===== 版本号与更新检测 =====
-var _ds_current_version = "2.20";
+var _ds_current_version = "2.21";
 var _ds_github_repo = "janmk1453/deepseek-tavern-script";
 // 通过 GitHub Pages 原始文件检查新版本（避免 API 限流）
 function checkForUpdates() {
@@ -202,13 +202,13 @@ function init() {
   // ===== 拦截 fetch 以捕获 DeepSeek API 用量 =====
   // 仅拦截 TARGET_API 路径的请求，提取 usage 并传给 processUsage
   // 调试模式下直接用模拟数据返回，不实际请求 API
-  function patchFetch() { var p = window.parent || window; if (p._ds_fetch_patched) return; var rawFetch = p.fetch; p.fetch = function() { var args = arguments; var url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url); if (url && url.indexOf(TARGET_API) !== -1) { var _ds_reqBody = null; try { _ds_reqBody = JSON.parse(args[1].body);  } catch(e){} var _ds_msgs = []; if (_ds_reqBody && _ds_reqBody.messages && _ds_reqBody.messages.length) { try { _ds_msgs = _ds_reqBody.messages.slice(-10); } catch(e){} var _ds_startTime = Date.now(); }
-       if (state.settings.debug) { var fakeUsage = { prompt_cache_hit_tokens: state.settings.debugHit, prompt_cache_miss_tokens: state.settings.debugMiss, completion_tokens: state.settings.debugOutput, total_tokens: state.settings.debugHit + state.settings.debugMiss + state.settings.debugOutput }; setTimeout(function() { try { var _p = window.parent || window; var _ctx = _p.SillyTavern && _p.SillyTavern.getContext && _p.SillyTavern.getContext(); var _chat = (_ctx && _ctx.chat) || []; var _chatMsgs = []; _chat.forEach(function(m){ if(m && m.mes) _chatMsgs.push({role:m.is_user?'user':'assistant',content:m.mes}); }); _ds_msgs = _chatMsgs.slice(-10); } catch(e){} processUsage(fakeUsage, state.settings.debugModel, _ds_msgs, _ds_startTime); }, 100); return Promise.resolve(new Response(JSON.stringify({ choices: [{ message: { content: '[调试模式] 此响应为模拟数据，未产生API费用' } }], usage: fakeUsage, model: state.settings.debugModel }), { status: 200, headers: { 'Content-Type': 'application/json' } })); } return rawFetch.apply(p, args).then(function(res) { var clone = res.clone(); clone.text().then(function(text) { try { var data = null; var trimmed = text.trim(); if (trimmed.startsWith('{')) { data = JSON.parse(trimmed); } else { text.split('\n').forEach(function(line) { if (line.startsWith('data: ') && line !== 'data: [DONE]') { try { var chunk = JSON.parse(line.substring(6)); if (chunk.usage) data = chunk; } catch(e) {} } }); } if (data && data.usage) { processUsage(data.usage, data.model || (data.choices && data.choices[0] && data.choices[0].model), _ds_msgs, _ds_startTime)} } catch(e) {} }).catch(function(err) { console.error("[DS] text() error", err); }); return res; }); } return rawFetch.apply(p, args); }; p._ds_fetch_patched = true; }
+  function patchFetch() { var p = window.parent || window; if (p._ds_fetch_patched) return; var rawFetch = p.fetch; p.fetch = function() { var args = arguments; var url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url); if (url && url.indexOf(TARGET_API) !== -1) { var _ds_reqBody = null; try { _ds_reqBody = JSON.parse(args[1].body); } catch(e){} var _ds_fullReq = _ds_reqBody ? JSON.parse(JSON.stringify(_ds_reqBody)) : null; var _ds_msgs = []; if (_ds_reqBody && _ds_reqBody.messages && _ds_reqBody.messages.length) { try { _ds_msgs = _ds_reqBody.messages.slice(-10); } catch(e){} } var _ds_startTime = Date.now();
+       if (state.settings.debug) { var fakeUsage = { prompt_cache_hit_tokens: state.settings.debugHit, prompt_cache_miss_tokens: state.settings.debugMiss, completion_tokens: state.settings.debugOutput, total_tokens: state.settings.debugHit + state.settings.debugMiss + state.settings.debugOutput }; var fakeResponse = { choices: [{ message: { content: '[调试模式] 此响应为模拟数据，未产生API费用' } }], usage: fakeUsage, model: state.settings.debugModel }; setTimeout(function() { try { var _p = window.parent || window; var _ctx = _p.SillyTavern && _p.SillyTavern.getContext && _p.SillyTavern.getContext(); var _chat = (_ctx && _ctx.chat) || []; var _chatMsgs = []; _chat.forEach(function(m){ if(m && m.mes) _chatMsgs.push({role:m.is_user?'user':'assistant',content:m.mes}); }); _ds_msgs = _chatMsgs.slice(-10); _ds_fullReq = null; } catch(e){} processUsage(fakeUsage, state.settings.debugModel, _ds_msgs, _ds_startTime, _ds_fullReq, fakeResponse); }, 100); return Promise.resolve(new Response(JSON.stringify(fakeResponse), { status: 200, headers: { 'Content-Type': 'application/json' } })); } return rawFetch.apply(p, args).then(function(res) { var clone = res.clone(); clone.text().then(function(text) { try { var data = null; var trimmed = text.trim(); if (trimmed.startsWith('{')) { data = JSON.parse(trimmed); } else { text.split('\n').forEach(function(line) { if (line.startsWith('data: ') && line !== 'data: [DONE]') { try { var chunk = JSON.parse(line.substring(6)); if (chunk.usage) data = chunk; } catch(e) {} } }); } if (data && data.usage) { processUsage(data.usage, data.model || (data.choices && data.choices[0] && data.choices[0].model), _ds_msgs, _ds_startTime, _ds_fullReq, data)} } catch(e) {} }).catch(function(err) { console.error("[DS] text() error", err); }); return res; }); } return rawFetch.apply(p, args); }; p._ds_fetch_patched = true; }
   
   // ===== 处理单次 API 调用用量 =====
   // 从 usage 中提取 token 数，计算费用，更新当前存档和历史记录
-  function processUsage(usage, model, messages, startTime) {
-     messages = messages || []; var model = model || 'deepseek'; try { model = SillyTavern.getContext().model || model; } catch(e) {} var hit = usage.prompt_cache_hit_tokens || 0; var miss = usage.prompt_cache_miss_tokens || 0; var comp = usage.completion_tokens || 0; var total = usage.total_tokens || (hit + miss + comp); var lu = { timestamp: Date.now(), model: model, prompt_tokens: hit + miss, prompt_cache_hit_tokens: hit, prompt_cache_miss_tokens: miss, completion_tokens: comp, total_tokens: total }; var duration = startTime ? (Date.now() - startTime) : 0; var tokenRate = duration > 0 && comp > 0 ? Math.round((comp / duration) * 1000) : 0; lu.duration = duration; lu.tokenRate = tokenRate; lu.messages = messages; lu.cost = calcCost(lu); lu.rawUsage = usage; state.lastUsage = lu; var s = getSelectedSave(); if (!s) return; s.total_tokens += lu.total_tokens; s.total_cost += lu.cost.total; s.input_tokens += lu.prompt_tokens; s.output_tokens += lu.completion_tokens; s.cache_hit_tokens += lu.prompt_cache_hit_tokens; s.cache_miss_tokens += lu.prompt_cache_miss_tokens; s.input_cost += lu.cost.input; s.output_cost += lu.cost.output; s.rounds += 1; s.history.unshift({ timestamp: lu.timestamp, model: lu.model, prompt_tokens: lu.prompt_tokens, cache_hit_tokens: lu.prompt_cache_hit_tokens, cache_miss_tokens: lu.prompt_cache_miss_tokens, completion_tokens: lu.completion_tokens, total_tokens: lu.total_tokens, input_cost: lu.cost.input, output_cost: lu.cost.output, cost: lu.cost.total, cache_hit_rate: lu.prompt_tokens > 0 ? (lu.prompt_cache_hit_tokens / lu.prompt_tokens * 100) : 0, priceType: lu.cost.priceType || 'old', raw_usage: lu.rawUsage, messages: lu.messages, duration: lu.duration, tokenRate: lu.tokenRate }); if (s.history.length > 200) s.history = s.history.slice(0, 200); saveSaves(); if (state.customBalance !== null && state.customBalance !== '') { state.customBalance = parseFloat(state.customBalance) - lu.cost.total; saveData(CUSTOM_BALANCE_STORAGE, String(state.customBalance)); } else if (state.balance && state.balance.balance) { state.balance.balance = parseFloat(state.balance.balance) - lu.cost.total; saveData(BALANCE_STORAGE, JSON.stringify(state.balance)); } state.messageCount++; saveMessageCount(); if (state.settings.autoBalance && state.apiKey && state.messageCount >= state.settings.balanceInterval) { state.messageCount = 0; saveMessageCount(); autoQueryBalance(); } refreshUI(); }
+  function processUsage(usage, model, messages, startTime, fullRequest, fullResponse) {
+     messages = messages || []; var model = model || 'deepseek'; try { model = SillyTavern.getContext().model || model; } catch(e) {} var hit = usage.prompt_cache_hit_tokens || 0; var miss = usage.prompt_cache_miss_tokens || 0; var comp = usage.completion_tokens || 0; var total = usage.total_tokens || (hit + miss + comp); var lu = { timestamp: Date.now(), model: model, prompt_tokens: hit + miss, prompt_cache_hit_tokens: hit, prompt_cache_miss_tokens: miss, completion_tokens: comp, total_tokens: total }; var duration = startTime ? (Date.now() - startTime) : 0; var tokenRate = duration > 0 && comp > 0 ? Math.round((comp / duration) * 1000) : 0; lu.duration = duration; lu.tokenRate = tokenRate; lu.messages = messages; lu.cost = calcCost(lu); lu.rawUsage = usage; lu.fullRequest = fullRequest || null; lu.fullResponse = fullResponse || null; state.lastUsage = lu; var s = getSelectedSave(); if (!s) return; s.total_tokens += lu.total_tokens; s.total_cost += lu.cost.total; s.input_tokens += lu.prompt_tokens; s.output_tokens += lu.completion_tokens; s.cache_hit_tokens += lu.prompt_cache_hit_tokens; s.cache_miss_tokens += lu.prompt_cache_miss_tokens; s.input_cost += lu.cost.input; s.output_cost += lu.cost.output; s.rounds += 1; s.history.unshift({ timestamp: lu.timestamp, model: lu.model, prompt_tokens: lu.prompt_tokens, cache_hit_tokens: lu.prompt_cache_hit_tokens, cache_miss_tokens: lu.prompt_cache_miss_tokens, completion_tokens: lu.completion_tokens, total_tokens: lu.total_tokens, input_cost: lu.cost.input, output_cost: lu.cost.output, cost: lu.cost.total, cache_hit_rate: lu.prompt_tokens > 0 ? (lu.prompt_cache_hit_tokens / lu.prompt_tokens * 100) : 0, priceType: lu.cost.priceType || 'old', raw_usage: lu.rawUsage, messages: lu.messages, duration: lu.duration, tokenRate: lu.tokenRate, fullRequest: lu.fullRequest, fullResponse: lu.fullResponse }); if (s.history.length > 200) s.history = s.history.slice(0, 200); saveSaves(); if (state.customBalance !== null && state.customBalance !== '') { state.customBalance = parseFloat(state.customBalance) - lu.cost.total; saveData(CUSTOM_BALANCE_STORAGE, String(state.customBalance)); } else if (state.balance && state.balance.balance) { state.balance.balance = parseFloat(state.balance.balance) - lu.cost.total; saveData(BALANCE_STORAGE, JSON.stringify(state.balance)); } state.messageCount++; saveMessageCount(); if (state.settings.autoBalance && state.apiKey && state.messageCount >= state.settings.balanceInterval) { state.messageCount = 0; saveMessageCount(); autoQueryBalance(); } refreshUI(); }
   
   // ===== 根据 token 用量和定价表计算费用 =====
   // 支持新旧两套定价，新定价区分高峰/非高峰时段
@@ -283,7 +283,7 @@ function init() {
   doc.body.appendChild(dsCO);
   doc.getElementById('ds-compare-close').addEventListener('click', closeComparePanel);
   doc.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeComparePanel(); });
-  doc.addEventListener('click', function(e) { var t = e.target; if (t.classList.contains('ds-btn-compare-old')) { window._dsHandleCompare(t, 'old'); } else if (t.classList.contains('ds-btn-compare-new')) { window._dsHandleCompare(t, 'new'); } else if (t.classList.contains('ds-btn-usage')) { var ts=parseInt(t.getAttribute('data-ts')); var s=getSelectedSave(); var entry=null; if(s&&s.history){for(var hi=0;hi<s.history.length;hi++){if(s.history[hi].timestamp===ts){entry=s.history[hi];break;}}} if(entry){showUsageDetail(entry.model,{timestamp:entry.timestamp,model:entry.model,prompt_tokens:entry.prompt_tokens,cache_hit_tokens:entry.cache_hit_tokens,cache_miss_tokens:entry.cache_miss_tokens,completion_tokens:entry.completion_tokens,total_tokens:entry.total_tokens,input_cost:entry.input_cost,output_cost:entry.output_cost,cost:entry.cost,priceType:entry.priceType,raw_usage:entry.raw_usage});} } });
+  doc.addEventListener('click', function(e) { var t = e.target; if (t.classList.contains('ds-btn-compare-old')) { window._dsHandleCompare(t, 'old'); } else if (t.classList.contains('ds-btn-compare-new')) { window._dsHandleCompare(t, 'new'); } else if (t.classList.contains('ds-btn-usage')) { var ts=parseInt(t.getAttribute('data-ts')); var s=getSelectedSave(); var entry=null; if(s&&s.history){for(var hi=0;hi<s.history.length;hi++){if(s.history[hi].timestamp===ts){entry=s.history[hi];break;}}} if(entry){showUsageDetail(entry.model,{timestamp:entry.timestamp,model:entry.model,prompt_tokens:entry.prompt_tokens,cache_hit_tokens:entry.cache_hit_tokens,cache_miss_tokens:entry.cache_miss_tokens,completion_tokens:entry.completion_tokens,total_tokens:entry.total_tokens,input_cost:entry.input_cost,output_cost:entry.output_cost,cost:entry.cost,priceType:entry.priceType,raw_usage:entry.raw_usage,fullRequest:entry.fullRequest,fullResponse:entry.fullResponse,messages:entry.messages,duration:entry.duration,tokenRate:entry.tokenRate});} } });
 }
   
   // ===== 刷新存档下拉选择器 =====
@@ -1097,23 +1097,83 @@ var _ds_last_toggle = 0;                          // 防抖时间戳
 // ===== 显示使用详情弹窗 =====
 function showUsageDetail(model, rawUsage) {
   var p = window.parent || window; var doc = p.document;
-  var overlay = doc.getElementById('ds-usage-overlay');
-  if (overlay) { overlay.style.display = 'block'; doc.getElementById('ds-usage-panel').classList.add('ds-open'); return; }
-  overlay = doc.createElement('div'); overlay.id = 'ds-usage-overlay'; overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.65);z-index:999999;display:block;';
-  overlay.addEventListener('click', function(e) { if (e.target === overlay) closeUsageDetail(); });
+  function renderContent() {
+    var card = function(title, obj) {
+      if (!obj) return '<div style="margin-bottom:8px;padding:10px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="font-size:11px;color:#9ca3af;font-weight:500;margin-bottom:6px">' + title + '</div><div style="color:#6b7280;font-size:11px;font-style:italic">无数据</div></div>';
+      var json = JSON.stringify(obj, null, 2);
+      var isLong = json.length > 500;
+      var id = 'ds-detail-' + title.replace(/\s+/g, '-');
+      return '<div style="margin-bottom:8px;padding:10px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:11px;color:#9ca3af;font-weight:500">' + title + '</span>' + (isLong ? '<span id="' + id + '-toggle" style="font-size:10px;color:#6366f1;cursor:pointer">展开</span>' : '') + '</div><pre style="margin:0;font-size:11px;line-height:1.5;color:#d1d5db;white-space:pre-wrap;word-break:break-all;' + (isLong ? 'max-height:200px;overflow:hidden' : '') + '">' + json.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</pre></div>';
+    };
+    var ts = rawUsage.timestamp ? new Date(rawUsage.timestamp).toLocaleString('zh-CN') : '';
+    var tokenInfo = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;font-size:11px">' +
+      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">模型</div><div style="color:#a5b4fc;font-weight:600">' + (rawUsage.model || model) + '</div></div>' +
+      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">时间</div><div style="color:#e5e7eb">' + ts + '</div></div>' +
+      (rawUsage.duration ? '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">耗时</div><div style="color:#60a5fa">' + (rawUsage.duration/1000).toFixed(1) + 's</div></div>' : '') +
+      (rawUsage.tokenRate ? '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">速率</div><div style="color:#fbbf24">' + rawUsage.tokenRate + ' t/s</div></div>' : '') +
+      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">时段</div><div style="color:' + (rawUsage.priceType === 'new-peak' ? '#f59e0b' : rawUsage.priceType === 'new-offpeak' ? '#9ca3af' : '#6b7280') + '">' + (rawUsage.priceType === 'new-peak' ? '🔴 高峰' : rawUsage.priceType === 'new-offpeak' ? '🟢 非高峰' : '⚪ 旧价格') + '</div></div>' +
+      '</div>';
+    var costInfo = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;font-size:11px">' +
+      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">缓存命中</div><div style="color:#34d399">' + (rawUsage.cache_hit_tokens || 0).toLocaleString() + '</div></div>' +
+      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">缓存未命中</div><div style="color:#fca5a5">' + (rawUsage.cache_miss_tokens || 0).toLocaleString() + '</div></div>' +
+      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">输出 Token</div><div style="color:#a5b4fc">' + (rawUsage.completion_tokens || 0).toLocaleString() + '</div></div>' +
+      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">总 Token</div><div style="color:#f3f4f6;font-weight:600">' + (rawUsage.total_tokens || 0).toLocaleString() + '</div></div>' +
+      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">输入费用</div><div style="color:#fbbf24">¥' + (rawUsage.input_cost || 0).toFixed(6) + '</div></div>' +
+      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">输出费用</div><div style="color:#fbbf24">¥' + (rawUsage.output_cost || 0).toFixed(6) + '</div></div>' +
+      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px;grid-column:1/-1"><div style="color:#6b7280">总费用</div><div style="color:#fbbf24;font-weight:700;font-size:13px">¥' + (rawUsage.cost || 0).toFixed(6) + '</div></div>' +
+      '</div>';
+    var sections = tokenInfo + costInfo;
+    sections += card('请求参数 (Request Body)', rawUsage.fullRequest);
+    sections += card('API 完整响应 (Full Response)', rawUsage.fullResponse);
+    sections += card('原始 Token 用量 (Raw Usage)', rawUsage.raw_usage);
+    sections += card('消息内容 (Messages)', rawUsage.messages);
+    return sections;
+  }
   var isMobile = p.innerWidth <= 480;
+  var headerStyle = isMobile ? 'padding:12px 16px;border-bottom:1px solid #374151;display:flex;justify-content:space-between;align-items:center;flex-shrink:0' : 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #374151';
+  var bodyStyle = isMobile ? 'padding:12px;flex:1;overflow-y:auto' : 'overflow-y:auto';
+  var contentHtml = '<div style="' + headerStyle + '"><span style="font-weight:600;font-size:14px">使用详情 — ' + model + '</span><div id="ds-usage-close" style="width:28px;height:28px;background:#374151;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;color:#9ca3af;flex-shrink:0;margin-left:auto">✕</div></div><div style="' + bodyStyle + '">' + renderContent() + '</div>';
+  var existingOverlay = doc.getElementById('ds-usage-overlay');
+  var existingPanel = doc.getElementById('ds-usage-panel');
+  if (existingOverlay && existingPanel) {
+    existingPanel.innerHTML = contentHtml;
+    existingOverlay.style.display = 'block';
+    existingPanel.classList.add('ds-open');
+    doc.getElementById('ds-usage-close').onclick = closeUsageDetail;
+    existingPanel.querySelectorAll('[id$="-toggle"]').forEach(function(el) {
+      el.onclick = function() {
+        var pre = this.parentElement.nextElementSibling;
+        if (pre) {
+          var isCollapsed = pre.style.maxHeight !== 'none';
+          pre.style.maxHeight = isCollapsed ? 'none' : '200px';
+          this.textContent = isCollapsed ? '收起' : '展开';
+        }
+      };
+    });
+    return;
+  }
+  var overlay = doc.createElement('div'); overlay.id = 'ds-usage-overlay'; overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.65);z-index:999999;display:block;';
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) closeUsageDetail(); });
   var panel = doc.createElement('div'); panel.id = 'ds-usage-panel';
   if (isMobile) {
     panel.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;transform:translateY(100%);z-index:999999;background:#0e1520;font-family:\'Microsoft YaHei\',\'微软雅黑\',sans-serif;color:#e5e7eb;transition:transform 0.2s ease,opacity 0.2s ease;opacity:0;pointer-events:none;box-sizing:border-box;overflow-y:auto';
   } else {
-    panel.style.cssText = 'position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);z-index:999999;background:#0e1520;border:1px solid #374151;border-radius:12px 12px 0 0;padding:16px;font-family:\'Microsoft YaHei\',\'微软雅黑\',sans-serif;color:#e5e7eb;box-shadow:0 20px 60px rgba(0,0,0,0.5);transition:transform 0.3s ease,opacity 0.3s ease;opacity:0;pointer-events:none;width:min(700px,100%);max-height:80vh;overflow-y:auto;max-width:100vw;box-sizing:border-box';
+    panel.style.cssText = 'position:fixed;bottom:0;left:50%;transform:translateX(-50%) translateY(100%);z-index:999999;background:#0e1520;border:1px solid #374151;border-radius:12px 12px 0 0;padding:16px;font-family:\'Microsoft YaHei\',\'微软雅黑\',sans-serif;color:#e5e7eb;box-shadow:0 20px 60px rgba(0,0,0,0.5);transition:transform 0.3s ease,opacity 0.3s ease;opacity:0;pointer-events:none;width:min(580px,calc(100vw - 32px));max-height:65vh;overflow-y:auto;max-width:calc(100vw - 32px);box-sizing:border-box';
   }
-  var headerStyle = isMobile ? 'padding:12px 16px;border-bottom:1px solid #374151;display:flex;justify-content:space-between;align-items:center;flex-shrink:0' : 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #374151';
-  var preStyle = isMobile ? 'background:#060a10;border-top:1px solid #374151;padding:12px;font-size:11px;line-height:1.5;overflow-x:auto;white-space:pre-wrap;word-break:break-all;color:#d1d5db;margin:0;flex:1' : 'background:#060a10;border:1px solid #374151;border-radius:6px;padding:12px;font-size:11px;line-height:1.5;overflow-x:auto;white-space:pre-wrap;word-break:break-all;color:#d1d5db;margin:0';
-  panel.innerHTML = '<div style="' + headerStyle + '"><span style="font-weight:600;font-size:14px">使用详情 — ' + model + '</span><div id="ds-usage-close" style="width:28px;height:28px;background:#374151;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;color:#9ca3af;flex-shrink:0;margin-left:auto">✕</div></div><pre style="' + preStyle + '">' + JSON.stringify(rawUsage, null, 2) + '</pre>';
+  panel.innerHTML = contentHtml;
   doc.body.appendChild(overlay); doc.body.appendChild(panel);
   var dsUS = doc.createElement('style'); dsUS.textContent = '#ds-usage-panel.ds-open{opacity:1!important;pointer-events:auto!important;' + (isMobile ? 'transform:translateY(0)!important}' : 'transform:translateX(-50%) translateY(0)!important}'); doc.head.appendChild(dsUS);
   doc.getElementById('ds-usage-close').addEventListener('click', closeUsageDetail);
+  panel.querySelectorAll('[id$="-toggle"]').forEach(function(el) {
+    el.onclick = function() {
+      var pre = this.parentElement.nextElementSibling;
+      if (pre) {
+        var isCollapsed = pre.style.maxHeight !== 'none';
+        pre.style.maxHeight = isCollapsed ? 'none' : '200px';
+        this.textContent = isCollapsed ? '收起' : '展开';
+      }
+    };
+  });
   doc.addEventListener('keydown', function _dsEsc(e) { if (e.key === 'Escape') { closeUsageDetail(); doc.removeEventListener('keydown', _dsEsc); } });
   requestAnimationFrame(function() { requestAnimationFrame(function() { panel.classList.add('ds-open'); }); });
 }
