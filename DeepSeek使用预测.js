@@ -12,6 +12,7 @@
   function isPeakHour(timestamp) { var d = new Date(timestamp); var totalMinutes = (d.getUTCHours() * 60 + d.getUTCMinutes() + 8 * 60) % 1440; return (totalMinutes >= 540 && totalMinutes < 720) || (totalMinutes >= 840 && totalMinutes < 1080); }
   var isInitDone = false;
   function shortModel(m) { return m.replace(/^deepseek-/, 'DS-'); }
+  function shortModelV2(m) { if (m.indexOf('flash') !== -1) return 'V4F'; if (m.indexOf('pro') !== -1) return 'V4P'; return shortModel(m); }
   var initTimestamp = 0;
   // ===== 面板 HTML 模板（含内联 CSS 样式） =====
   // 使用字符串拼接而非模板字符串，所有 " 需转义为 \"
