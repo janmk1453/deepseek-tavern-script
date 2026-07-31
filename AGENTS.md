@@ -9,7 +9,7 @@ SillyTavern Tavern Helper script that tracks DeepSeek API usage (tokens, cost, c
 ## Files
 
 - `DeepSeek使用预测.js` — Source of truth (IIFE). Edit this file.
-- `DeepSeek_Statistic_V2.23.json` — Packaged JSON for manual import; copy & rename from previous version on release. `content` must stay in sync with JS.
+- `DeepSeek_Statistic_V2.25.json` — Packaged JSON for manual import; copy & rename from previous version on release. `content` must stay in sync with JS.
 - `DeepSeek_Statistic_auto_update.json` — Auto-update loader (GitHub Pages). Only touch if URL changes.
 - `DeepSeek_Statistic_auto_update_jsDelivr_cdn.json` — Auto-update loader (jsDelivr CDN). Only touch if URL changes.
 - `README.md` — Docs; update changelog in lockstep.
@@ -20,10 +20,10 @@ SillyTavern Tavern Helper script that tracks DeepSeek API usage (tokens, cost, c
 2. Bump `_ds_current_version` variable (e.g. `"X.XX"`)
 3. **Sync JSON** — extract the IIFE into the versioned JSON's `content` field:
    ```bash
-    node -e "var f=require('fs');var js=f.readFileSync('DeepSeek使用预测.js','utf8');var i=js.indexOf('(function()');var json=JSON.parse(f.readFileSync('DeepSeek_Statistic_V2.23.json','utf8'));json.content=js.substring(i);f.writeFileSync('DeepSeek_Statistic_V2.23.json',JSON.stringify(json,null,2)+'\n');console.log('synced')"
+    node -e "var f=require('fs');var js=f.readFileSync('DeepSeek使用预测.js','utf8');var i=js.indexOf('(function()');var json=JSON.parse(f.readFileSync('DeepSeek_Statistic_V2.25.json','utf8'));json.content=js.substring(i);f.writeFileSync('DeepSeek_Statistic_V2.25.json',JSON.stringify(json,null,2)+'\n');console.log('synced')"
     ```
-4. **Rename JSON** — rename `DeepSeek_Statistic_VX.XX.json` to the new version (e.g. `DeepSeek_Statistic_V2.23.json`), or copy from previous version on release.
-5. Validate: `node --check DeepSeek使用预测.js` and `node -e "new Function(JSON.parse(require('fs').readFileSync('DeepSeek_Statistic_V2.23.json','utf8')).content);console.log('valid')"`
+4. **Rename JSON** — rename `DeepSeek_Statistic_VX.XX.json` to the new version (e.g. `DeepSeek_Statistic_V2.25.json`), or copy from previous version on release.
+5. Validate: `node --check DeepSeek使用预测.js` and `node -e "new Function(JSON.parse(require('fs').readFileSync('DeepSeek_Statistic_V2.25.json','utf8')).content);console.log('valid')"`
 6. Update `README.md` changelog if needed
 7. Commit and push to `main`
 
@@ -48,10 +48,10 @@ git checkout main
 
 ```bash
 # 1. 创建 release
-gh release create v2.23 --title "release 2.23" --notes "<changelog>"
+gh release create v2.25 --title "release 2.25" --notes "<changelog>"
 
 # 2. 上传资产（--clobber 允许覆盖已有文件）
-gh release upload v2.23 --clobber "DeepSeek_Statistic_V2.23.json" "DeepSeek_Statistic_auto_update.json" "DeepSeek_Statistic_auto_update_jsDelivr_cdn.json"
+gh release upload v2.25 --clobber "DeepSeek_Statistic_V2.25.json" "DeepSeek_Statistic_auto_update.json" "DeepSeek_Statistic_auto_update_jsDelivr_cdn.json"
 
 # 3. 刷新 jsDelivr CDN 缓存
 Invoke-RestMethod -Uri "https://purge.jsdelivr.net/gh/janmk1453/deepseek-tavern-script@gh-pages/DeepSeek%E4%BD%BF%E7%94%A8%E9%A2%84%E6%B5%8B.js" -Method Get | Out-Null
@@ -62,7 +62,7 @@ Invoke-RestMethod -Uri "https://purge.jsdelivr.net/gh/janmk1453/deepseek-tavern-
 Release notes 必须遵循以下固定格式：
 
 ```markdown
-## 2.23 更新内容
+## 2.25 更新内容
 
 ### 新增功能
 - ...
@@ -79,7 +79,7 @@ Release notes 必须遵循以下固定格式：
 
 | 文件 | 说明 | 推荐 |
 |------|------|------|
-| \DeepSeek_Statistic_V2.23.json\ | 完整版脚本，手动导入 | 需要特定版本时使用 |
+| \DeepSeek_Statistic_V2.25.json\ | 完整版脚本，手动导入 | 需要特定版本时使用 |
 | \DeepSeek_Statistic_auto_update.json\ | 自动更新版（GitHub Pages），导入后自动获取最新脚本 | ✅推荐 |
 | \DeepSeek_Statistic_auto_update_jsDelivr_cdn.json\ | 自动更新版（jsDelivr CDN），导入后自动获取最新脚本 | 该渠道更新较慢，但国内网络适应性强 |
 
@@ -89,12 +89,12 @@ Release notes 必须遵循以下固定格式：
 3. 之后每次启动自动获取最新版本，无需手动更新
 
 ### 手动更新使用方法
-1. 下载 \DeepSeek_Statistic_V2.23.json\
+1. 下载 \DeepSeek_Statistic_V2.25.json\
 2. 在 SillyTavern 中的酒馆助手导入该文件
 3. 每次更新需重新导入
 ```
 
-其中 2.23 替换为实际版本号，各更新内容章节按实际情况填写，无内容的章节可省略。
+其中 2.25 替换为实际版本号，各更新内容章节按实际情况填写，无内容的章节可省略。
 
 > **jsDelivr cache**: Clears within minutes after push; manual purge at https://www.jsdelivr.com/tools/purge
 
@@ -107,6 +107,39 @@ Release notes 必须遵循以下固定格式：
 - **Version** — `_ds_current_version` variable near top of JS
 - **API patching** — monkey-patches `fetch` globally to intercept API responses and record usage
 - **Update check** — fetches latest version from GitHub Pages raw file (not API)
+
+## Modals & Overlays in SillyTavern
+
+**Never rely on `position:fixed` for modal centering.** Some ancestor container (e.g. `#shell`) carries a `transform`, which changes the containing block of `fixed` elements. When the window narrows (e.g. below ~996px) or the page scrolls, the modal drifts out of view — typically pinned to the top of the screen and half hidden. This cannot be fixed with CSS.
+
+Robust pattern (implemented in `_dsShowImportConfirm` / `_dsPositionImportDialog` / `_dsHideImportConfirm`):
+
+1. Append the overlay AND the dialog as **direct children of `parent.document.body`**, both `position:absolute`, so neither depends on any ancestor's positioning chain.
+2. To center: temporarily set dialog `left:0;top:0`, read `getBoundingClientRect()` to derive the document-origin offset `docOff = -rect.left/top`, then position it at `docOff + viewport_center`. Since the measurement and the dialog share the same coordinate space, the math is self-consistent regardless of whether scrolling happens on `window` or an inner `overflow:auto` container, and regardless of `transform` ancestors.
+3. Re-position on `scroll` (capture phase `{ capture: true, passive: true }` — `scroll` does not bubble, but capture catches inner-container scrolls) and on `resize`.
+4. Make the overlay cover only the current viewport: set `width/height = documentElement.clientWidth/clientHeight` at `left/top = docOff`.
+
+## Import / Export
+
+- Buttons live at the right end of the "历史记录" header row in `PANEL_HTML` (`#ds-btn-export`, `#ds-btn-import`); click handlers bound in `createUI`.
+- **Export** (`exportHistory`): builds `{ format: 'deepseek-stat-export', version: 1, exportedAt, appVersion, data: { saves, currentSave, balance, customBalance, settings, messageCount } }`, downloads as `.json` via `Blob` + temp `<a download>` in the parent document. **Never include the API key** (`KEY_STORAGE` / `state.apiKey`).
+- **Import** (`importHistory`): hidden `<input type="file">` in the parent document, `FileReader` + `JSON.parse`, validates `format === 'deepseek-stat-export'`, then opens the confirm overlay with three choices (覆盖导入 / 合并导入 / 取消).
+- **Apply** (`applyImportedData(data, mode)`):
+  - `overwrite`: replaces `state.saves`, `currentSave`, `balance`, `customBalance`, `settings`, `messageCount`; write `''` to `CUSTOM_BALANCE_STORAGE` / `BALANCE_STORAGE` when the imported value is `null`/empty so stale storage is cleared.
+  - `merge`: adds new saves; for same-key saves merges `history` de-duplicated by `timestamp`, keeps current balance/settings/messageCount.
+  - Always backfill missing `priceType: 'old'` on history entries, then persist (`saveSaves`/`saveCurrentSaveKey`/`saveSettings`/`saveMessageCount`), call `recalcAllCosts()` so aggregate stats are recomputed from history, and refresh UI/charts.
+
+### Forward-compatibility contract
+
+Rules that keep old export files importable in future versions:
+
+- **Field stability**: Never delete, rename, or change the meaning of existing fields in the export object or in save/history entries. Adding new optional fields is allowed **without** bumping `EXPORT_FORMAT_VERSION`.
+- **Bump version on structural changes**: Any restructure (rename/relayout of fields) requires bumping `EXPORT_FORMAT_VERSION` (constant in `DeepSeek使用预测.js`) AND adding a migration function in `normalizeImportData`'s migration chain (`vN -> vN+1`).
+- **All imports go through `normalizeImportData`**: Never consume `raw.data` directly in `importHistory`/`applyImportedData`. Every new data field must get a sensible default there so files without it still import.
+- **Costs are always recomputed**: `cost`/`input_cost`/`output_cost`/`total_cost`/`cache_hit_rate` in an export are historical snapshots only. After import, `recalcAllCosts()` rebuilds them from token data using the current `PRICING` + settings. Never trust imported cost values.
+- **No API keys**: The export payload is an explicit whitelist; no field inside `data` may ever contain the API key (`KEY_STORAGE`/`state.apiKey`). When adding fields, add them to the whitelist explicitly — do not dump whole `state` objects.
+- **Version check policy**: Files with `version > EXPORT_FORMAT_VERSION` are rejected with an "upgrade the script" message (older scripts must not guess at newer formats).
+- **Checklist after touching import/export**: (1) every new field has a default in `normalizeImportData`; (2) existing fields unchanged; (3) `EXPORT_FORMAT_VERSION` bumped only for structural changes with a migration; (4) run `node --check` + JSON sync + a manual import test with an old export file.
 
 ## Gotchas
 
