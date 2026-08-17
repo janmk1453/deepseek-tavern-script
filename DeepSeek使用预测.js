@@ -3,7 +3,7 @@
 (function() {
   // ===== 定价表（单位：¥/百万 tokens） =====
   // 分为 offpeak（非高峰/旧价格）和 peak（高峰时段价格，UTC+8 09:00-12:00 及 14:00-18:00）
-  var PRICING = { 'deepseek-v4-flash': { offpeak: { hit: 0.05, miss: 1.5, output: 4.5 }, peak: { hit: 0.10, miss: 3.0, output: 9.0 } }, 'deepseek-v4-pro': { offpeak: { hit: 0.15, miss: 4.5, output: 13.5 }, peak: { hit: 0.30, miss: 9.0, output: 27.0 } } };
+  var PRICING = { 'deepseek-v4-flash': { usePeakPricing: true, offpeak: { hit: 0.05, miss: 1.5, output: 4.5 }, peak: { hit: 0.10, miss: 3.0, output: 9.0 } }, 'deepseek-v4-pro': { usePeakPricing: true, offpeak: { hit: 0.15, miss: 4.5, output: 13.5 }, peak: { hit: 0.30, miss: 9.0, output: 27.0 } } };
   // ===== 默认高峰时段（可被 settings.peakHours 覆盖，格式 HH:mm，北京时区） =====
   var DEFAULT_PEAK_HOURS = [{ start: '09:00', end: '12:00' }, { start: '14:00', end: '18:00' }];
   // ===== 全局状态对象 =====
@@ -18,7 +18,7 @@
   // ===== 合并内置价格与用户自定义价格（字段级覆盖，留空回落内置） =====
   function mergePrices(base, custom) { if (!custom) return base; return { hit: custom.hit !== undefined && custom.hit !== '' ? parseFloat(custom.hit) : base.hit, miss: custom.miss !== undefined && custom.miss !== '' ? parseFloat(custom.miss) : base.miss, output: custom.output !== undefined && custom.output !== '' ? parseFloat(custom.output) : base.output }; }
   // ===== 查询模型定价：用户自定义优先，未定义回落内置，未知模型回落 flash =====
-  function getPricing(model) { var m = model || 'deepseek-v4-flash'; var base = PRICING[m] || PRICING['deepseek-v4-flash']; var cm = state.settings.customModels || []; for (var i = 0; i < cm.length; i++) { if (cm[i] && cm[i].model === m) return { offpeak: mergePrices(base.offpeak, cm[i].offpeak), peak: mergePrices(base.peak, cm[i].peak) }; } return base; }
+  function getPricing(model) { var m = model || 'deepseek-v4-flash'; var base = PRICING[m] || PRICING['deepseek-v4-flash']; var cm = state.settings.customModels || []; for (var i = 0; i < cm.length; i++) { if (cm[i] && cm[i].model === m) return { usePeakPricing: cm[i].usePeakPricing !== false, offpeak: mergePrices(base.offpeak, cm[i].offpeak), peak: mergePrices(base.peak, cm[i].peak) }; } return base; }
   var isInitDone = false;
   function shortModel(m) { return m.replace(/^deepseek-/, 'DS-'); }
   function shortModelV2(m) { if (m.indexOf('deepseek') !== -1) { if (m.indexOf('flash') !== -1) return 'V4F'; if (m.indexOf('pro') !== -1) return 'V4P'; } return shortModel(m); }
@@ -576,7 +576,7 @@ function init() {
   
   // ===== 根据 token 用量和定价表计算费用 =====
   // 支持新旧两套定价，新定价区分高峰/非高峰时段
-  function calcCost(u) { var model = u.model || 'deepseek-v4-flash'; var pricing = getPricing(model); var useNewPricing = state.settings.useNewPricing && u.timestamp >= state.settings.newPricingDate; var p; if (useNewPricing) { var isPeak = isPeakHour(u.timestamp); p = isPeak ? pricing.peak : pricing.offpeak; } else { p = pricing.offpeak; } var ih = (u.prompt_cache_hit_tokens / 1e6) * p.hit; var im = (u.prompt_cache_miss_tokens / 1e6) * p.miss; var o = (u.completion_tokens / 1e6) * p.output; var priceType = useNewPricing ? (isPeakHour(u.timestamp) ? 'new-peak' : 'new-offpeak') : 'old'; return { input: ih + im, output: o, total: ih + im + o, priceType: priceType }; }
+  function calcCost(u) { var model = u.model || 'deepseek-v4-flash'; var pricing = getPricing(model); var useNewPricing = state.settings.useNewPricing && u.timestamp >= state.settings.newPricingDate; var p; var priceType; if (useNewPricing && pricing.usePeakPricing !== false) { var isPeak = isPeakHour(u.timestamp); p = isPeak ? pricing.peak : pricing.offpeak; priceType = isPeak ? 'new-peak' : 'new-offpeak'; } else { p = pricing.offpeak; priceType = useNewPricing ? 'new-offpeak' : 'old'; } var ih = (u.prompt_cache_hit_tokens / 1e6) * p.hit; var im = (u.prompt_cache_miss_tokens / 1e6) * p.miss; var o = (u.completion_tokens / 1e6) * p.output; return { input: ih + im, output: o, total: ih + im + o, priceType: priceType }; }
   // ===== 重新计算所有存档的汇总费用 =====
   // 在加载旧数据或切换定价模式后调用，确保统计一致性
   function recalcAllCosts() { Object.keys(state.saves).forEach(function(k) { var s = state.saves[k]; s.total_tokens = 0; s.total_cost = 0; s.input_tokens = 0; s.output_tokens = 0; s.cache_hit_tokens = 0; s.cache_miss_tokens = 0; s.input_cost = 0; s.output_cost = 0; s.rounds = 0; (s.history || []).forEach(function(h) { var u = { timestamp: h.timestamp, model: h.model, prompt_cache_hit_tokens: h.cache_hit_tokens || 0, prompt_cache_miss_tokens: h.cache_miss_tokens || 0, completion_tokens: h.completion_tokens || 0 }; var c = calcCost(u); h.input_cost = c.input; h.output_cost = c.output; h.cost = c.total; h.priceType = c.priceType; h.cache_hit_rate = (h.cache_hit_tokens || 0) + (h.cache_miss_tokens || 0) > 0 ? ((h.cache_hit_tokens || 0) / ((h.cache_hit_tokens || 0) + (h.cache_miss_tokens || 0)) * 100) : 0; s.total_tokens += h.total_tokens || 0; s.total_cost += h.cost; s.input_tokens += (h.prompt_tokens || 0); s.output_tokens += h.completion_tokens || 0; s.cache_hit_tokens += h.cache_hit_tokens || 0; s.cache_miss_tokens += h.cache_miss_tokens || 0; s.input_cost += c.input; s.output_cost += c.output; if (isDeepSeekOfficialModel(h.model)) { s.rounds += 1; } }); if (s.history && s.history.length > 200) s.history = s.history.slice(0, 200); }); saveSaves(); }
@@ -700,29 +700,48 @@ function init() {
 // ===== 模型与价格 / 峰谷时段 编辑器（自定义模型名与价格、自定义高峰时段） =====
 function modelEditorRowHtml(model, entry, isBuiltin) {
   var p = getPricing(model);
+  var usePeak = p.usePeakPricing !== false;
   var oh = p.offpeak, pk = p.peak;
-  var rowStyle = 'display:flex;flex-direction:column;gap:4px;padding:6px;background:#080d14;border:1px solid #374151;border-radius:6px';
-  var inpStyle = 'width:100%;min-width:0;padding:5px 6px;border:1px solid #374151;border-radius:5px;background:#0e1520;color:#e5e7eb;font-size:11px;font-family:\'Microsoft YaHei\',\'微软雅黑\',sans-serif;outline:none;text-align:right';
-  var roStyle = 'width:100%;min-width:0;padding:5px 6px;border:1px solid #374151;border-radius:5px;background:#111827;color:#9ca3af;font-size:11px;font-family:\'Microsoft YaHei\',\'微软雅黑\',sans-serif;outline:none';
-  var lblStyle = 'font-size:9px;color:#6b7280;text-align:center;margin-bottom:1px;white-space:nowrap';
+  var rowStyle = 'display:flex;flex-direction:column;gap:6px;padding:8px;background:#0a1018;border:1px solid #1f2937;border-radius:8px';
+  var inpStyle = 'flex:1;min-width:0;padding:5px 8px;border:1px solid #374151;border-radius:5px;background:#0e1520;color:#e5e7eb;font-size:12px;font-family:\'Microsoft YaHei\',\'微软雅黑\',sans-serif;outline:none';
+  var roStyle = 'flex:1;min-width:0;padding:5px 8px;border:1px solid #374151;border-radius:5px;background:#111827;color:#9ca3af;font-size:12px;font-family:\'Microsoft YaHei\',\'微软雅黑\',sans-serif;outline:none';
   var modelInput = '<input type="text" class="ds-cm-model" value="' + model + '" placeholder="模型名" ' + (isBuiltin ? 'readonly style="' + roStyle + '"' : 'style="' + inpStyle + '"') + '>';
-  var delBtn = isBuiltin ? '' : '<button data-del="1" style="padding:5px 8px;border:1px solid #7f1d1d;border-radius:5px;background:#7f1d1d;color:#fca5a5;font-size:11px;cursor:pointer;font-family:inherit">删除</button>';
-  var priceCells = '';
-  ['offpeak', 'peak'].forEach(function(zone) {
-    var zonePrices = zone === 'offpeak' ? oh : pk;
-    ['hit', 'miss', 'output'].forEach(function(f) {
-      var val = zonePrices ? (zonePrices[f] !== undefined && zonePrices[f] !== '' ? zonePrices[f] : '') : '';
-      priceCells += '<div><div style="' + lblStyle + '">' + (zone === 'offpeak' ? '非峰' : '高峰') + (f === 'hit' ? '·命中' : f === 'miss' ? '·未命中' : '·输出') + '</div><input type="number" min="0" step="0.001" data-price="' + zone + '.' + f + '" value="' + val + '" style="' + inpStyle + '"></div>';
-    });
-  });
+  var delBtn = isBuiltin ? '' : '<button data-del="1" style="padding:5px 9px;border:1px solid #7f1d1d;border-radius:5px;background:#7f1d1d;color:#fca5a5;font-size:11px;cursor:pointer;font-family:inherit;white-space:nowrap">删除</button>';
+  var sliderLeft = usePeak ? '19px' : '3px';
+  var peakToggle = '<label style="position:relative;display:inline-block;width:36px;height:20px;cursor:pointer;flex-shrink:0" title="开启后按高峰/非高峰时段分别计价，关闭则使用统一价格">' +
+    '<input type="checkbox" class="ds-cm-peak" style="opacity:0;width:0;height:0"' + (usePeak ? ' checked' : '') + '>' +
+    '<span style="position:absolute;top:0;left:0;right:0;bottom:0;background:' + (usePeak ? '#2563eb' : '#374151') + ';border-radius:10px;transition:0.3s;cursor:pointer">' +
+    '<span class="ds-cm-slider" style="position:absolute;height:14px;width:14px;left:' + sliderLeft + ';bottom:3px;background:white;border-radius:50%;transition:0.3s"></span></span></label>';
+  var header = '<div style="display:flex;align-items:center;gap:8px">' +
+    '<span style="font-size:10px;color:#6b7280;white-space:nowrap;flex-shrink:0">模型</span>' + modelInput +
+    '<span style="flex:1;min-width:4px"></span>' +
+    '<span style="font-size:10px;color:#9ca3af;white-space:nowrap;flex-shrink:0">峰谷</span>' + peakToggle +
+    delBtn + '</div>';
+  function fieldHtml(zone, f, val) {
+    var lbl = f === 'hit' ? '命中' : f === 'miss' ? '未命中' : '输出';
+    return '<div style="display:flex;align-items:center;gap:6px"><span style="font-size:10px;color:#9ca3af;width:44px;flex-shrink:0">' + lbl + '</span><input type="number" min="0" step="0.001" data-price="' + zone + '.' + f + '" value="' + (val !== undefined && val !== '' ? val : '') + '" style="' + inpStyle + '"></div>';
+  }
+  function zoneHtml(zoneLabel, zone, zonePrices, accent) {
+    var body = '';
+    ['hit', 'miss', 'output'].forEach(function(f) { body += fieldHtml(zone, f, zonePrices ? zonePrices[f] : ''); });
+    return '<div style="background:#0e1520;border:1px solid #1f2937;border-radius:6px;padding:7px;display:flex;flex-direction:column;gap:5px">' +
+      '<div style="font-size:10px;color:' + accent + ';font-weight:600;margin-bottom:1px">' + zoneLabel + '</div>' + body + '</div>';
+  }
+  var offZone = zoneHtml('非峰时段', 'offpeak', oh, '#34d399');
+  var peakZone = zoneHtml('高峰时段', 'peak', pk, '#fbbf24');
+  var pricesArea = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
+    '<div class="ds-cm-off-zone" style="' + (usePeak ? '' : 'grid-column:1/-1;') + '">' + offZone + '</div>' +
+    '<div class="ds-cm-peak-zone" style="' + (usePeak ? '' : 'display:none;') + '">' + peakZone + '</div></div>';
+  var foot = '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:4px">' +
+    '<span style="font-size:9px;color:#6b7280">单位：元 / 百万 tokens</span>' +
+    '<span style="font-size:9px;color:#6b7280">' + (isBuiltin ? '内置模型（价格可覆盖，不可删除）' : '自定义模型') + '</span></div>';
   return '<div class="ds-cm-row" data-model="' + model + '" data-builtin="' + (isBuiltin ? '1' : '0') + '" style="' + rowStyle + '">' +
-    '<div style="display:flex;gap:4px;align-items:center">' + modelInput + delBtn + '</div>' +
-    '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:4px">' + priceCells + '</div>' +
-    '<div style="font-size:9px;color:#6b7280">' + (isBuiltin ? '内置模型（价格可覆盖，不可删除）' : '自定义模型') + '</div>' +
-    '</div>';
+    header + pricesArea + foot + '</div>';
 }
 function readCustomModelRow(row) {
   var res = { offpeak: {}, peak: {} };
+  var cb = row.querySelector('.ds-cm-peak');
+  res.usePeakPricing = cb ? cb.checked : true;
   var inputs = row.querySelectorAll('input[data-price]');
   for (var i = 0; i < inputs.length; i++) {
     var inp = inputs[i];
@@ -738,6 +757,7 @@ function readCustomModelRow(row) {
 function saveCustomModelRow(model, prices, isBuiltin) {
   var cm = state.settings.customModels;
   var base = PRICING[model];
+  var usePeak = prices.usePeakPricing !== false;
   var sameAsBase = true;
   ['hit', 'miss', 'output'].forEach(function(f) {
     var o = prices.offpeak[f], k = prices.peak[f];
@@ -746,10 +766,10 @@ function saveCustomModelRow(model, prices, isBuiltin) {
   });
   var found = -1;
   for (var i = 0; i < cm.length; i++) if (cm[i] && cm[i].model === model) { found = i; break; }
-  if (isBuiltin && sameAsBase) {
+  if (isBuiltin && usePeak && sameAsBase) {
     if (found !== -1) cm.splice(found, 1);
   } else {
-    var entry = { model: model, offpeak: prices.offpeak, peak: prices.peak };
+    var entry = { model: model, usePeakPricing: usePeak, offpeak: prices.offpeak, peak: prices.peak };
     if (found !== -1) cm[found] = entry; else cm.push(entry);
   }
   saveSettings();
@@ -762,6 +782,33 @@ function onCustomModelInput(e, list) {
   if (!row) return;
   var model = row.getAttribute('data-model');
   var isBuiltin = row.getAttribute('data-builtin') === '1';
+  if (e.target.classList.contains('ds-cm-peak')) {
+    var usePeak = e.target.checked;
+    var prices = readCustomModelRow(row);
+    var cm = state.settings.customModels;
+    var found = -1;
+    for (var i = 0; i < cm.length; i++) { if (cm[i] && cm[i].model === model) { found = i; break; } }
+    if (found !== -1) {
+      cm[found].usePeakPricing = usePeak;
+      cm[found].offpeak = prices.offpeak;
+      cm[found].peak = prices.peak;
+    } else {
+      cm.push({ model: model, usePeakPricing: usePeak, offpeak: prices.offpeak, peak: prices.peak });
+    }
+    saveSettings();
+    var offEl = row.querySelector('.ds-cm-off-zone');
+    var pkEl = row.querySelector('.ds-cm-peak-zone');
+    var slider = row.querySelector('.ds-cm-slider');
+    var track = e.target.parentElement ? e.target.parentElement.querySelector('span') : null;
+    if (offEl) offEl.style.gridColumn = usePeak ? '' : '1/-1';
+    if (pkEl) pkEl.style.display = usePeak ? '' : 'none';
+    if (slider) slider.style.left = usePeak ? '19px' : '3px';
+    if (track) track.style.background = usePeak ? '#2563eb' : '#374151';
+    recalcAllCosts();
+    refreshUI();
+    if (state.chartPanelOpen) refreshChartModelSelect();
+    return;
+  }
   if (e.target.classList.contains('ds-cm-model')) {
     if (isBuiltin) return;
     var newModel = e.target.value.trim();
@@ -810,7 +857,7 @@ function renderCustomModelsEditor() {
   if (addBtn) addBtn.onclick = function() {
     var cm2 = state.settings.customModels;
     var name = 'custom-model-' + (cm2.length + 1);
-    cm2.push({ model: name, offpeak: {}, peak: {} });
+    cm2.push({ model: name, usePeakPricing: true, offpeak: {}, peak: {} });
     saveSettings();
     renderCustomModelsEditor();
     fillDebugModelSelect();
