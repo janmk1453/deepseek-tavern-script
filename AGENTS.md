@@ -6,6 +6,8 @@ SillyTavern Tavern Helper script that tracks DeepSeek API usage (tokens, cost, c
 
 **Rule: Never commit, push, deploy to gh-pages, or release unless explicitly asked. Only edit files and sync JSON.**
 
+**版本号规则：未经用户明确要求，禁止推进 `_ds_current_version` 版本号、修改面板中的 release 徽章、或重命名版本化 JSON 文件。功能修改只编辑代码并同步 content 即可，保持版本号不变。**
+
 ## Files
 
 - `DeepSeek使用预测.js` — Source of truth (IIFE). Edit this file.
