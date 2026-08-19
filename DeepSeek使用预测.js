@@ -462,6 +462,86 @@ function init() {
     _dsPositionImportDialog();
   }
 
+  // ===== 通用确认弹窗（用于清空等危险操作，避免原生 confirm 在 iframe 中错位） =====
+  // 定位方式与导入确认弹窗一致：absolute 挂载到 parent body，经 getBoundingClientRect 计算文档偏移后居中，
+  // 兼容含 transform 的祖先容器（fixed 定位会失效）与窄屏/滚动场景（scroll/resize 时重定位）
+  var _dsConfirmState = null;
+  function _dsPositionConfirmDialog() {
+    var p = window.parent || window;
+    var doc = p.document;
+    var overlay = doc.getElementById('ds-confirm-overlay');
+    var dlg = doc.getElementById('ds-confirm-dialog');
+    if (!overlay || !dlg || overlay.style.display === 'none') return;
+    var vw = doc.documentElement.clientWidth || p.innerWidth || 0;
+    var vh = doc.documentElement.clientHeight || p.innerHeight || 0;
+    var w = Math.min(400, Math.max(280, vw * 0.92));
+    dlg.style.left = '0px';
+    dlg.style.top = '0px';
+    var rect = dlg.getBoundingClientRect();
+    var docOffX = -rect.left;
+    var docOffY = -rect.top;
+    dlg.style.width = Math.round(w) + 'px';
+    dlg.style.maxHeight = Math.round(vh - 48) + 'px';
+    var h = Math.min(dlg.scrollHeight || 260, Math.max(200, vh - 48));
+    dlg.style.left = Math.round(docOffX + (vw - w) / 2) + 'px';
+    dlg.style.top = Math.round(docOffY + Math.max(8, (vh - h) / 2)) + 'px';
+    overlay.style.left = docOffX + 'px';
+    overlay.style.top = docOffY + 'px';
+    overlay.style.width = vw + 'px';
+    overlay.style.height = vh + 'px';
+  }
+  function _dsConfirmResolve(val) {
+    var p = window.parent || window;
+    var doc = p.document;
+    var overlay = doc.getElementById('ds-confirm-overlay');
+    var dlg = doc.getElementById('ds-confirm-dialog');
+    if (overlay) overlay.style.display = 'none';
+    if (dlg) dlg.style.display = 'none';
+    if (_dsConfirmState && _dsConfirmState.resolve) { _dsConfirmState.resolve(val); _dsConfirmState = null; }
+  }
+  function _dsConfirm(opts) {
+    var p = window.parent || window;
+    var doc = p.document;
+    return new Promise(function(resolve) {
+      var overlay = doc.getElementById('ds-confirm-overlay');
+      if (!overlay) {
+        overlay = doc.createElement('div');
+        overlay.id = 'ds-confirm-overlay';
+        overlay.style.cssText = 'position:absolute;top:0;left:0;background:rgba(0,0,0,0.6);z-index:999999;display:none;';
+        overlay.addEventListener('click', function(e) { if (e.target === overlay) _dsConfirmResolve(false); });
+        doc.body.appendChild(overlay);
+        var dlg = doc.createElement('div');
+        dlg.id = 'ds-confirm-dialog';
+        dlg.style.cssText = 'position:absolute;z-index:1000000;background:#0e1520;border:1px solid #374151;border-radius:12px;padding:20px 24px;box-sizing:border-box;color:#e5e7eb;font-family:\'Microsoft YaHei\',\'微软雅黑\',sans-serif;box-shadow:0 20px 60px rgba(0,0,0,0.5);';
+        dlg.innerHTML = '<div id="ds-confirm-title" style="font-size:15px;font-weight:600;margin-bottom:8px"></div>' +
+          '<div id="ds-confirm-msg" style="font-size:12px;color:#9ca3af;line-height:1.8;margin-bottom:16px;white-space:pre-line"></div>' +
+          '<div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">' +
+          '<button id="ds-confirm-cancel" style="padding:7px 14px;border:1px solid #374151;border-radius:6px;background:transparent;color:#9ca3af;font-size:12px;cursor:pointer;font-family:inherit">取消</button>' +
+          '<button id="ds-confirm-ok" style="padding:7px 14px;border:1px solid rgba(248,113,113,0.5);border-radius:6px;background:rgba(248,113,113,0.15);color:#f87171;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">确认</button>' +
+          '</div>';
+        doc.body.appendChild(dlg);
+        var cb = dlg.querySelector('#ds-confirm-cancel');
+        var ob = dlg.querySelector('#ds-confirm-ok');
+        if (cb) cb.onclick = function() { _dsConfirmResolve(false); };
+        if (ob) ob.onclick = function() { _dsConfirmResolve(true); };
+        p.addEventListener('scroll', _dsPositionConfirmDialog, { capture: true, passive: true });
+        p.addEventListener('resize', _dsPositionConfirmDialog, { passive: true });
+        setTimeout(_dsPositionConfirmDialog, 50);
+      }
+      var t = doc.getElementById('ds-confirm-title');
+      var m = doc.getElementById('ds-confirm-msg');
+      var okb = doc.getElementById('ds-confirm-ok');
+      if (t) t.textContent = opts.title || '确认操作';
+      if (m) m.textContent = opts.message || '';
+      if (okb) okb.textContent = opts.confirmText || '确认';
+      _dsConfirmState = { resolve: resolve };
+      overlay.style.display = 'block';
+      var dlg2 = doc.getElementById('ds-confirm-dialog');
+      if (dlg2) dlg2.style.display = 'block';
+      _dsPositionConfirmDialog();
+    });
+  }
+
   // ===== 应用导入的数据（overwrite 覆盖全部 / merge 合并存档） =====
   // d 已通过 normalizeImportData 归一化（版本迁移 + 缺省补全）；
   // 导入后统一调用 recalcAllCosts 从 history 重算汇总，确保统计完整正确还原
@@ -1005,7 +1085,7 @@ function initPricingEditors() {
   function createUI() { var p = window.parent || window; var doc = p.document; if (doc.getElementById('ds-panel') && doc.getElementById('ds-overlay')) { return; } ['ds-overlay', 'ds-panel'].forEach(function(id) { var el = doc.getElementById(id); if (el) el.remove(); }); var overlay = doc.createElement('div'); overlay.id = 'ds-overlay'; overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:100000;display:block;opacity:0;pointer-events:none;transition:opacity 0.3s ease;'; overlay.addEventListener('click', function(e) { if (e.target === overlay) togglePanel(); }); var panel = doc.createElement('div'); panel.id = 'ds-panel'; panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;max-height:85vh;background:rgb(13,19,38);border-radius:12px 12px 0 0;z-index:100001;overflow:hidden;display:flex;flex-direction:column;border-top:0.5px solid rgba(55,65,81,0.35);box-sizing:border-box;transform:translate(-50%,-50%) scale(0.95);opacity:0;pointer-events:none;will-change:transform,opacity;'; var header = doc.createElement('div'); header.style.cssText = 'padding:14px 16px;background:rgb(13,19,38);border-bottom:0.5px solid rgba(55,65,81,0.35);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;'; header.innerHTML = '<div style="display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600;color:#f3f4f6;font-family:\'Microsoft YaHei\',\'微软雅黑\',sans-serif;line-height:1">DeepSeek使用预测<span style="font-size:10px;font-weight:500;color:#9ca3af;background:rgba(55,65,81,0.4);padding:2px 8px;border-radius:10px;border:0.5px solid rgba(55,65,81,0.3);line-height:1\">release' + _ds_current_version + '</span><span id="ds-btn-check-update" style="font-size:11px;font-weight:500;color:#60a5fa;background:rgba(96,165,250,0.1);padding:3px 10px;border-radius:8px;border:0.5px solid rgba(96,165,250,0.25);cursor:pointer;transition:background 0.2s;line-height:1" title="检查更新">检查更新</span></div>'; var hr = doc.createElement('div'); hr.style.cssText = 'width:28px;height:28px;background:#374151;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;color:#9ca3af;'; hr.innerHTML = '\u2715'; hr.addEventListener('click', function(e) { e.stopPropagation(); togglePanel(); }); header.appendChild(hr); var content = doc.createElement('div'); content.id = 'ds-content'; content.style.cssText = 'flex:1;overflow-y:auto;padding:16px;background:rgb(13,19,38);font-family:\'Microsoft YaHei\',\'微软雅黑\',sans-serif;'; content.innerHTML = PANEL_HTML; panel.appendChild(header); panel.appendChild(content); doc.body.appendChild(overlay); var dsStyle = doc.createElement('style'); dsStyle.id = 'ds-responsive-css'; dsStyle.textContent = '@media(min-width:761px){#ds-panel{position:fixed!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%) scale(0.95)!important;opacity:0!important;pointer-events:none!important;will-change:transform,opacity!important;transition:opacity 0.25s ease,transform 0.25s ease!important;width:min(1200px,75%)!important;height:min(1400px,calc(var(--ds-vvh,95vh) - 24px))!important;max-height:min(1400px,calc(var(--ds-vvh,95vh) - 24px))!important;border-radius:12px!important;border-top:1px solid #374151!important}#ds-panel.ds-open{transform:translate(-50%,-50%) scale(1)!important;opacity:1!important;pointer-events:auto!important}}@media(max-width:760px){#ds-panel{display:flex!important;width:100vw!important;height:100vh!important;max-height:none!important;border-radius:0!important;top:0!important;border-top:1px solid #374151!important;transform:translateY(100%)!important;opacity:0!important;pointer-events:none!important;will-change:transform,opacity!important;transition:opacity 0.25s ease,transform 0.25s ease!important}#ds-panel.ds-open{display:flex!important;transform:translateY(0)!important;opacity:1!important;pointer-events:auto!important}}#ds-panel.ds-no-animation,#ds-panel.ds-no-animation.ds-open{transition:none!important}'; doc.head.appendChild(dsStyle); var dsRespCSS = doc.createElement('style'); dsRespCSS.textContent = '@media(max-width:400px){#ds-panel .ds-history-header{flex-wrap:wrap;gap:4px!important}#ds-panel .ds-history-header>div:first-child{width:100%}#ds-panel .ds-history-header>div:last-child{width:100%;justify-content:flex-end}#ds-panel .ds-model-badge{font-size:9px;padding:1px 4px!important;max-width:60px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}#ds-panel .ds-price-type{font-size:9px;padding:0px 3px!important}#ds-panel .ds-btn-compare,#ds-panel .ds-btn-usage{font-size:9px;padding:1px 5px!important;margin-left:2px!important}}'; doc.head.appendChild(dsRespCSS);
   var dsHover = doc.createElement('style');
   dsHover.textContent = '#ds-btn-check-update:hover{background:rgba(96,165,250,0.25)!important}';
-  doc.head.appendChild(dsHover); doc.body.appendChild(panel); setTimeout(function() { if (state.customBalance !== null && state.customBalance !== '') { var be = doc.getElementById('ds-balance'); var se = doc.getElementById('ds-balance-status'); if (be) be.textContent = '\u00A5' + state.customBalance + ' CNY'; if (se) se.textContent = '\u81EA\u5B9A\u4E49\u4F59\u989D'; } else if (state.balance) { var be = doc.getElementById('ds-balance'); var se = doc.getElementById('ds-balance-status'); if (be) be.textContent = '\u00A5' + state.balance.balance + ' ' + state.balance.currency; if (se) se.textContent = '\u8D26\u6237\u53EF\u7528'; } doc.getElementById('ds-btn-new-save').onclick = function() { createNewSave(); refreshUI(); }; doc.getElementById('ds-btn-delete-save').onclick = function() { if (confirm('确定删除当前存档？')) { deleteSave(state.currentSave); refreshUI(); } }; doc.getElementById('ds-btn-delete-all').onclick = function() { if (confirm('确定清空全部存档？此操作不可恢复！')) { state.saves = {}; saveSaves(); createNewSave(); syncCustomBalanceFromSave(); refreshUI(); } }; doc.getElementById('ds-btn-refresh').onclick = function() { refreshUI(); }; doc.getElementById('ds-btn-clear').onclick = function() { var s = getSelectedSave(); if (s) { s.total_tokens = 0; s.total_cost = 0; s.input_tokens = 0; s.output_tokens = 0; s.cache_hit_tokens = 0; s.cache_miss_tokens = 0; s.input_cost = 0; s.output_cost = 0; s.rounds = 0; s.history = []; saveSaves(); refreshUI(); } }; doc.getElementById('ds-btn-query-balance').onclick = function() { queryBalance(); }; doc.getElementById('ds-btn-settings').onclick = function() { toggleSettings(); };
+  doc.head.appendChild(dsHover); doc.body.appendChild(panel); setTimeout(function() { if (state.customBalance !== null && state.customBalance !== '') { var be = doc.getElementById('ds-balance'); var se = doc.getElementById('ds-balance-status'); if (be) be.textContent = '\u00A5' + state.customBalance + ' CNY'; if (se) se.textContent = '\u81EA\u5B9A\u4E49\u4F59\u989D'; } else if (state.balance) { var be = doc.getElementById('ds-balance'); var se = doc.getElementById('ds-balance-status'); if (be) be.textContent = '\u00A5' + state.balance.balance + ' ' + state.balance.currency; if (se) se.textContent = '\u8D26\u6237\u53EF\u7528'; } doc.getElementById('ds-btn-new-save').onclick = function() { createNewSave(); refreshUI(); }; doc.getElementById('ds-btn-delete-save').onclick = function() { if (confirm('确定删除当前存档？')) { deleteSave(state.currentSave); refreshUI(); } }; doc.getElementById('ds-btn-delete-all').onclick = function() { _dsConfirm({ title: '\u26A0\uFE0F \u6E05\u7A7A\u5168\u90E8\u5B58\u6863', message: '\u786E\u5B9A\u8981\u6E05\u7A7A\u5168\u90E8\u5B58\u6863\u5417\uff1f\n\n\u6B64\u64CD\u4F5C\u4E0D\u53EF\u6062\u590D\uff01', confirmText: '\u6E05\u7A7A\u5168\u90E8' }).then(function(ok) { if (ok) { state.saves = {}; saveSaves(); createNewSave(); syncCustomBalanceFromSave(); refreshUI(); } }); }; doc.getElementById('ds-btn-refresh').onclick = function() { refreshUI(); }; doc.getElementById('ds-btn-clear').onclick = function() { var s = getSelectedSave(); if (s) { s.total_tokens = 0; s.total_cost = 0; s.input_tokens = 0; s.output_tokens = 0; s.cache_hit_tokens = 0; s.cache_miss_tokens = 0; s.input_cost = 0; s.output_cost = 0; s.rounds = 0; s.history = []; saveSaves(); refreshUI(); } }; doc.getElementById('ds-btn-query-balance').onclick = function() { queryBalance(); }; doc.getElementById('ds-btn-settings').onclick = function() { toggleSettings(); };
 doc.getElementById('ds-save-select').onchange = function(e) { state.currentSave = e.target.value; syncCustomBalanceFromSave(); saveCurrentSaveKey(); refreshUI(); var spp = doc.getElementById('ds-settings-panel'); if (spp && spp.classList.contains('ds-open')) refreshSettingsUI(); };       
       doc.getElementById('ds-btn-charts').onclick = function() { toggleCharts(); };
       var omSel = doc.getElementById('ds-overview-model');
