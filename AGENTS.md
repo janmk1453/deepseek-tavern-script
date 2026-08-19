@@ -6,7 +6,7 @@ SillyTavern Tavern Helper script that tracks DeepSeek API usage (tokens, cost, c
 
 **Rule: Never commit, push, deploy to gh-pages, or release unless explicitly asked. Only edit files and sync JSON.**
 
-**版本号规则：未经用户明确要求，禁止推进 `_ds_current_version` 版本号、修改面板中的 release 徽章、或重命名版本化 JSON 文件。功能修改只编辑代码并同步 content 即可，保持版本号不变。**
+**版本号规则：未经用户明确要求，禁止推进 `_ds_current_version` 版本号、或重命名版本化 JSON 文件。功能修改只编辑代码并同步 content 即可，保持版本号不变。面板标题栏的 release 徽章会自动读取 `_ds_current_version` 动态显示（`release' + _ds_current_version + '`），升级版本号时无需（也禁止）再单独硬编码修改徽章；"使用说明"区域已移除版本徽章。**
 
 ## Files
 
@@ -19,7 +19,7 @@ SillyTavern Tavern Helper script that tracks DeepSeek API usage (tokens, cost, c
 ## Making Changes
 
 1. Edit `DeepSeek使用预测.js`
-2. Bump `_ds_current_version` variable (e.g. `"X.XX"`)
+2. Bump `_ds_current_version` variable (e.g. `"X.XX"`) — the title-bar release badge reads this variable dynamically, so no separate badge edit is needed
 3. **Sync JSON** — extract the IIFE into the versioned JSON's `content` field:
    ```bash
     node -e "var f=require('fs');var js=f.readFileSync('DeepSeek使用预测.js','utf8');var i=js.indexOf('(function()');var json=JSON.parse(f.readFileSync('DeepSeek_Statistic_V2.25.json','utf8'));json.content=js.substring(i);f.writeFileSync('DeepSeek_Statistic_V2.25.json',JSON.stringify(json,null,2)+'\n');console.log('synced')"
@@ -106,7 +106,7 @@ Release notes 必须遵循以下固定格式：
 - **UI** — `PANEL_HTML` string concatenation (not a template); all `"` must be escaped as `\"`
 - **Persistence** — dual: `localStorage` for key/balance, `getAllVariables`/`replaceVariables` (TavernHelper API) for saves/settings
 - **Pricing** — `PRICING` object at top: `{ offpeak: {...}, peak: {...} }` per model; `isPeakHour()` uses Beijing timezone
-- **Version** — `_ds_current_version` variable near top of JS
+- **Version** — `_ds_current_version` variable near top of JS is the single source of truth; the title-bar release badge reads it dynamically (`release' + _ds_current_version + '`), never hardcode the version in `PANEL_HTML`
 - **API patching** — monkey-patches `fetch` globally to intercept API responses and record usage
 - **Update check** — fetches latest version from GitHub Pages raw file (not API)
 
