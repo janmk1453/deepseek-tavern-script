@@ -601,7 +601,7 @@ function init() {
   
   // ===== 根据 token 用量和定价表计算费用 =====
   // 支持新旧两套定价，新定价区分高峰/非高峰时段
-  function calcCost(u) { var model = u.model || 'deepseek-v4-flash'; var pricing = getPricing(model); var useNewPricing = state.settings.useNewPricing && u.timestamp >= state.settings.newPricingDate; var p; var priceType; if (useNewPricing && pricing.usePeakPricing !== false) { var isPeak = isPeakHour(u.timestamp); p = isPeak ? pricing.peak : pricing.offpeak; priceType = isPeak ? 'new-peak' : 'new-offpeak'; } else { p = pricing.offpeak; priceType = useNewPricing ? 'new-offpeak' : 'old'; } var ih = (u.prompt_cache_hit_tokens / 1e6) * p.hit; var im = (u.prompt_cache_miss_tokens / 1e6) * p.miss; var o = (u.completion_tokens / 1e6) * p.output; return { input: ih + im, output: o, total: ih + im + o, priceType: priceType }; }
+  function calcCost(u) { var model = u.model || 'deepseek-v4-flash'; if (!hasPriceForModel(model)) { return { input: 0, output: 0, total: 0, priceType: 'old' }; } var pricing = getPricing(model); var useNewPricing = state.settings.useNewPricing && u.timestamp >= state.settings.newPricingDate; var p; var priceType; if (useNewPricing && pricing.usePeakPricing !== false) { var isPeak = isPeakHour(u.timestamp); p = isPeak ? pricing.peak : pricing.offpeak; priceType = isPeak ? 'new-peak' : 'new-offpeak'; } else { p = pricing.offpeak; priceType = useNewPricing ? 'new-offpeak' : 'old'; } var ih = (u.prompt_cache_hit_tokens / 1e6) * p.hit; var im = (u.prompt_cache_miss_tokens / 1e6) * p.miss; var o = (u.completion_tokens / 1e6) * p.output; return { input: ih + im, output: o, total: ih + im + o, priceType: priceType }; }
   // ===== 重新计算所有存档的汇总费用 =====
   // 在加载旧数据或切换定价模式后调用，确保统计一致性
   function recalcAllCosts() { Object.keys(state.saves).forEach(function(k) { var s = state.saves[k]; s.total_tokens = 0; s.total_cost = 0; s.input_tokens = 0; s.output_tokens = 0; s.cache_hit_tokens = 0; s.cache_miss_tokens = 0; s.input_cost = 0; s.output_cost = 0; s.rounds = 0; (s.history || []).forEach(function(h) { var u = { timestamp: h.timestamp, model: h.model, prompt_cache_hit_tokens: h.cache_hit_tokens || 0, prompt_cache_miss_tokens: h.cache_miss_tokens || 0, completion_tokens: h.completion_tokens || 0 }; var c = calcCost(u); h.input_cost = c.input; h.output_cost = c.output; h.cost = c.total; h.priceType = c.priceType; h.cache_hit_rate = (h.cache_hit_tokens || 0) + (h.cache_miss_tokens || 0) > 0 ? ((h.cache_hit_tokens || 0) / ((h.cache_hit_tokens || 0) + (h.cache_miss_tokens || 0)) * 100) : 0; s.total_tokens += h.total_tokens || 0; s.total_cost += h.cost; s.input_tokens += (h.prompt_tokens || 0); s.output_tokens += h.completion_tokens || 0; s.cache_hit_tokens += h.cache_hit_tokens || 0; s.cache_miss_tokens += h.cache_miss_tokens || 0; s.input_cost += c.input; s.output_cost += c.output; if (isDeepSeekOfficialModel(h.model)) { s.rounds += 1; } }); if (s.history && s.history.length > 200) s.history = s.history.slice(0, 200); }); saveSaves(); }
@@ -1796,10 +1796,10 @@ function renderCharts() {
   var totalTokens = filtered.map(function(d) { return d.total_tokens || 0; });
   function getHitCost(d) { var total = (d.cache_hit_tokens || 0) + (d.cache_miss_tokens || 0); return total > 0 ? (d.input_cost || 0) * (d.cache_hit_tokens / total) : 0; }
   function getMissCost(d) { var total = (d.cache_hit_tokens || 0) + (d.cache_miss_tokens || 0); return total > 0 ? (d.input_cost || 0) * (d.cache_miss_tokens / total) : 0; }
-  var hitCost = filtered.map(function(d) { return hasPriceForModel(d.model) ? getHitCost(d) : 0; });
-  var missCost = filtered.map(function(d) { return hasPriceForModel(d.model) ? getMissCost(d) : 0; });
-  var outputCost = filtered.map(function(d) { return hasPriceForModel(d.model) ? (d.output_cost || 0) : 0; });
-  var totalCost = filtered.map(function(d) { return hasPriceForModel(d.model) ? (d.cost || 0) : 0; });
+  var hitCost = filtered.map(getHitCost);
+  var missCost = filtered.map(getMissCost);
+  var outputCost = filtered.map(function(d) { return d.output_cost || 0; });
+  var totalCost = filtered.map(function(d) { return d.cost || 0; });
   var hitRateData = filtered.map(function(d) { return d.cache_hit_tokens > 0 && (d.cache_hit_tokens + d.cache_miss_tokens) > 0 ? (d.cache_hit_tokens / (d.cache_hit_tokens + d.cache_miss_tokens) * 100) : 0; });
   // ===== 日期模式数据（按自然日聚合） =====
   var dayAgg = aggregateByDay(filtered);
@@ -1808,11 +1808,10 @@ function renderCharts() {
   var dayMissT = dD.map(function(d){return d.cache_miss_tokens;});
   var dayCompT = dD.map(function(d){return d.completion_tokens;});
   var dayTotalT = dD.map(function(d){return d.total_tokens;});
-  function dayUnpriced(d) { return d.models && d.models.length && d.models.every(function(m){ return !hasPriceForModel(m); }); }
-  var dayHitC = dD.map(function(d){return dayUnpriced(d)?0:(d.prompt_tokens>0?d.input_cost*(d.cache_hit_tokens/d.prompt_tokens):0);});
-  var dayMissC = dD.map(function(d){return dayUnpriced(d)?0:(d.prompt_tokens>0?d.input_cost*(d.cache_miss_tokens/d.prompt_tokens):0);});
-  var dayOutC = dD.map(function(d){return dayUnpriced(d)?0:d.output_cost;});
-  var dayTotalC = dD.map(function(d){return dayUnpriced(d)?0:d.cost;});
+  var dayHitC = dD.map(function(d){return d.prompt_tokens>0?d.input_cost*(d.cache_hit_tokens/d.prompt_tokens):0;});
+  var dayMissC = dD.map(function(d){return d.prompt_tokens>0?d.input_cost*(d.cache_miss_tokens/d.prompt_tokens):0;});
+  var dayOutC = dD.map(function(d){return d.output_cost;});
+  var dayTotalC = dD.map(function(d){return d.cost;});
   var dayHitRate = dD.map(function(d){return d.prompt_tokens>0?d.cache_hit_tokens/d.prompt_tokens*100:0;});
   var dayReqCount = dD.map(function(d){return d.count;});
   // ===== 公共变量 =====
@@ -2278,9 +2277,9 @@ function showUsageDetail(model, rawUsage) {
       '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">缓存未命中</div><div style="color:#fca5a5">' + (rawUsage.cache_miss_tokens || 0).toLocaleString() + '</div></div>' +
       '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">输出 Token</div><div style="color:#a5b4fc">' + (rawUsage.completion_tokens || 0).toLocaleString() + '</div></div>' +
       '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">总 Token</div><div style="color:#f3f4f6;font-weight:600">' + (rawUsage.total_tokens || 0).toLocaleString() + '</div></div>' +
-      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">输入费用</div><div style="color:#fbbf24">¥' + (rawUsage.input_cost || 0).toFixed(6) + '</div></div>' +
-      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">输出费用</div><div style="color:#fbbf24">¥' + (rawUsage.output_cost || 0).toFixed(6) + '</div></div>' +
-      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px;grid-column:1/-1"><div style="color:#6b7280">总费用</div><div style="color:#fbbf24;font-weight:700;font-size:13px">¥' + (rawUsage.cost || 0).toFixed(6) + '</div></div>' +
+      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">输入费用</div><div style="color:#fbbf24">' + fmtCost(rawUsage.model || model, rawUsage.input_cost || 0, 6) + '</div></div>' +
+      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px"><div style="color:#6b7280">输出费用</div><div style="color:#fbbf24">' + fmtCost(rawUsage.model || model, rawUsage.output_cost || 0, 6) + '</div></div>' +
+      '<div style="padding:8px;background:#060a10;border:1px solid #374151;border-radius:6px;grid-column:1/-1"><div style="color:#6b7280">总费用</div><div style="color:#fbbf24;font-weight:700;font-size:13px">' + fmtCost(rawUsage.model || model, rawUsage.cost || 0, 6) + '</div></div>' +
       '</div>';
     var sections = tokenInfo + costInfo;
     sections += card('请求参数 (Request Body)', rawUsage.fullRequest);
