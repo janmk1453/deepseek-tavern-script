@@ -1522,7 +1522,7 @@ function aggregateByDay(entries) {
   var dayMap = {};
   entries.forEach(function(e) {
     var key = new Date(e.timestamp).toISOString().slice(0, 10);
-    if (!dayMap[key]) dayMap[key] = { count: 0, total_tokens: 0, cost: 0, cache_hit_tokens: 0, cache_miss_tokens: 0, completion_tokens: 0, input_cost: 0, output_cost: 0, prompt_tokens: 0, duration: 0, tokenRateSum: 0, rateCount: 0 };
+    if (!dayMap[key]) dayMap[key] = { count: 0, total_tokens: 0, cost: 0, cache_hit_tokens: 0, cache_miss_tokens: 0, completion_tokens: 0, input_cost: 0, output_cost: 0, prompt_tokens: 0, duration: 0, tokenRateSum: 0, rateCount: 0, models: [] };
     var d = dayMap[key];
     d.count++;
     d.total_tokens += e.total_tokens || 0;
@@ -1535,6 +1535,7 @@ function aggregateByDay(entries) {
     if (e.tokenRate) { d.tokenRateSum += e.tokenRate; d.rateCount++; }
     d.output_cost += e.output_cost || 0;
     d.prompt_tokens += e.prompt_tokens || 0;
+    if (e.model && d.models.indexOf(e.model) === -1) d.models.push(e.model);
   });
   var keys = Object.keys(dayMap).sort();
   if (keys.length === 0) return { labels: [], keys: [], data: [] };
@@ -1795,10 +1796,10 @@ function renderCharts() {
   var totalTokens = filtered.map(function(d) { return d.total_tokens || 0; });
   function getHitCost(d) { var total = (d.cache_hit_tokens || 0) + (d.cache_miss_tokens || 0); return total > 0 ? (d.input_cost || 0) * (d.cache_hit_tokens / total) : 0; }
   function getMissCost(d) { var total = (d.cache_hit_tokens || 0) + (d.cache_miss_tokens || 0); return total > 0 ? (d.input_cost || 0) * (d.cache_miss_tokens / total) : 0; }
-  var hitCost = filtered.map(getHitCost);
-  var missCost = filtered.map(getMissCost);
-  var outputCost = filtered.map(function(d) { return d.output_cost || 0; });
-  var totalCost = filtered.map(function(d) { return d.cost || 0; });
+  var hitCost = filtered.map(function(d) { return hasPriceForModel(d.model) ? getHitCost(d) : 0; });
+  var missCost = filtered.map(function(d) { return hasPriceForModel(d.model) ? getMissCost(d) : 0; });
+  var outputCost = filtered.map(function(d) { return hasPriceForModel(d.model) ? (d.output_cost || 0) : 0; });
+  var totalCost = filtered.map(function(d) { return hasPriceForModel(d.model) ? (d.cost || 0) : 0; });
   var hitRateData = filtered.map(function(d) { return d.cache_hit_tokens > 0 && (d.cache_hit_tokens + d.cache_miss_tokens) > 0 ? (d.cache_hit_tokens / (d.cache_hit_tokens + d.cache_miss_tokens) * 100) : 0; });
   // ===== 日期模式数据（按自然日聚合） =====
   var dayAgg = aggregateByDay(filtered);
@@ -1807,10 +1808,11 @@ function renderCharts() {
   var dayMissT = dD.map(function(d){return d.cache_miss_tokens;});
   var dayCompT = dD.map(function(d){return d.completion_tokens;});
   var dayTotalT = dD.map(function(d){return d.total_tokens;});
-  var dayHitC = dD.map(function(d){return d.prompt_tokens>0?d.input_cost*(d.cache_hit_tokens/d.prompt_tokens):0;});
-  var dayMissC = dD.map(function(d){return d.prompt_tokens>0?d.input_cost*(d.cache_miss_tokens/d.prompt_tokens):0;});
-  var dayOutC = dD.map(function(d){return d.output_cost;});
-  var dayTotalC = dD.map(function(d){return d.cost;});
+  function dayUnpriced(d) { return d.models && d.models.length && d.models.every(function(m){ return !hasPriceForModel(m); }); }
+  var dayHitC = dD.map(function(d){return dayUnpriced(d)?0:(d.prompt_tokens>0?d.input_cost*(d.cache_hit_tokens/d.prompt_tokens):0);});
+  var dayMissC = dD.map(function(d){return dayUnpriced(d)?0:(d.prompt_tokens>0?d.input_cost*(d.cache_miss_tokens/d.prompt_tokens):0);});
+  var dayOutC = dD.map(function(d){return dayUnpriced(d)?0:d.output_cost;});
+  var dayTotalC = dD.map(function(d){return dayUnpriced(d)?0:d.cost;});
   var dayHitRate = dD.map(function(d){return d.prompt_tokens>0?d.cache_hit_tokens/d.prompt_tokens*100:0;});
   var dayReqCount = dD.map(function(d){return d.count;});
   // ===== 公共变量 =====
@@ -1820,6 +1822,30 @@ function renderCharts() {
   // ===== 工具：根据模式选取数据集 =====
   function pick(modeKey, roundArr, dayArr) { return _chartDayMode[modeKey] ? dayArr : roundArr; }
   function srcData(modeKey) { return _chartDayMode[modeKey] ? dD : filtered; }
+  // ===== 图表 tooltip 辅助：展示数据点所属模型及其当前设置的价格 =====
+  function modelPriceText(m) {
+    if (!hasPriceForModel(m)) return '价格未设置';
+    var pr = getPricing(m); var off = pr.offpeak;
+    var txt = '命中¥' + off.hit + ' 未命中¥' + off.miss + ' 输出¥' + off.output + '/M';
+    if (pr.usePeakPricing !== false && pr.peak) {
+      var pk = pr.peak;
+      txt += '；高峰 命中¥' + pk.hit + ' 未命中¥' + pk.miss + ' 输出¥' + pk.output + '/M';
+    }
+    return txt;
+  }
+  function chartTooltipLines(d) {
+    var ms = d && d.models && d.models.length ? d.models : (d && d.model ? [d.model] : []);
+    if (!ms.length) return [];
+    var lines = ['模型: ' + ms.join(', ')];
+    if (ms.length === 1) {
+      lines.push('模型价格: ' + modelPriceText(ms[0]));
+    } else {
+      var hasP = ms.some(function(m){ return hasPriceForModel(m); });
+      var allP = ms.every(function(m){ return hasPriceForModel(m); });
+      lines.push(allP ? '模型价格: 多模型' : hasP ? '模型价格: 部分模型未设置价格' : '模型价格: 价格未设置');
+    }
+    return lines;
+  }
   // ===== 热力图 =====
   renderHeatmap(filtered, dayAgg);
   // ===== 图1 · Token 趋势 =====
@@ -1843,7 +1869,7 @@ function renderCharts() {
           responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
-            tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = srcData('token')[idx]; if (!d) return []; var t = new Date(d.timestamp?d.timestamp:dD[idx]?Date.now():0).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return ['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]; } } },
+            tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = srcData('token')[idx]; if (!d) return []; var t = new Date(d.timestamp?d.timestamp:dD[idx]?Date.now():0).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return chartTooltipLines(d).concat(['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]); } } },
             zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: false }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' }, onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)}, onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)} }
           },
           scales: {
@@ -1875,7 +1901,7 @@ function renderCharts() {
           responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
-            tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = srcData('cost')[idx]; if (!d) return []; var t = new Date(d.timestamp?d.timestamp:dD[idx]?Date.now():0).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return ['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]; } } },
+            tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = srcData('cost')[idx]; if (!d) return []; var t = new Date(d.timestamp?d.timestamp:dD[idx]?Date.now():0).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return chartTooltipLines(d).concat(['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]); } } },
             zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: false }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' }, onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)}, onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)} }
           },
           scales: {
@@ -1904,7 +1930,7 @@ function renderCharts() {
           responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
-            tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = srcData('rate')[idx]; if (!d) return []; var t = new Date(d.timestamp?d.timestamp:dD[idx]?Date.now():0).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return ['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]; } } },
+            tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = srcData('rate')[idx]; if (!d) return []; var t = new Date(d.timestamp?d.timestamp:dD[idx]?Date.now():0).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '\uD83D\uDD34 \u9AD8\u5CF0' : d.priceType === 'new-offpeak' ? '\uD83D\uDFE2 \u975E\u9AD8\u5CF0' : '\u26AA \u65E7\u4EF7\u683C'; return chartTooltipLines(d).concat(['\u5BF9\u8BDD\u65F6\u95F4: ' + t, '\u65F6\u6BB5: ' + p]); } } },
             zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: false }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' }, onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)}, onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)} }
           },
           scales: {
@@ -1932,7 +1958,7 @@ function renderCharts() {
           responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
-            tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var rec = dD[idx]; if (!rec) return []; return ['\u5F53\u65E5\u8BF7\u6C42: ' + rec.count + ' \u6B21']; } } },
+            tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var rec = dD[idx]; if (!rec) return []; return chartTooltipLines(rec).concat(['\u5F53\u65E5\u8BF7\u6C42: ' + rec.count + ' \u6B21']); } } },
             zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: false }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' }, onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)}, onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)} }
           },
           scales: {
@@ -1967,7 +1993,7 @@ function renderCharts() {
           responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
           plugins: {
             legend: { position: 'top', labels: { color: '#9ca3af', font: { family: fontFam }, boxWidth: 12, padding: 12, usePointStyle: true } },
-            tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = srcData('duration')[idx]; if (!d) return []; var t = new Date(d.timestamp?d.timestamp:dD[idx]?Date.now():0).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '🔴 高峰' : d.priceType === 'new-offpeak' ? '🟢 非高峰' : '⚪ 旧价格'; return ['对话时间: ' + t, '时段: ' + p]; } } },
+            tooltip: { callbacks: { afterBody: function(items) { var idx = items[0].dataIndex; var d = srcData('duration')[idx]; if (!d) return []; var t = new Date(d.timestamp?d.timestamp:dD[idx]?Date.now():0).toLocaleString('zh-CN'); var p = d.priceType === 'new-peak' ? '🔴 高峰' : d.priceType === 'new-offpeak' ? '🟢 非高峰' : '⚪ 旧价格'; return chartTooltipLines(d).concat(['对话时间: ' + t, '时段: ' + p]); } } },
             zoom: { pan: { enabled: true, mode: 'x' }, zoom: { wheel: { enabled: false }, pinch: { enabled: true }, drag: { enabled: true, backgroundColor: 'rgba(99,102,241,0.08)', borderColor: '#6366f1', borderWidth: 1 }, mode: 'x' }, onPanComplete:function(ctx){syncSliderFromChart(ctx.chart)}, onZoomComplete:function(ctx){syncSliderFromChart(ctx.chart)} }
           },
           scales: {
