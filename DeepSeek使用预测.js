@@ -3,7 +3,7 @@
 (function() {
   // ===== 定价表（单位：¥/百万 tokens） =====
   // 分为 offpeak（非高峰/旧价格）和 peak（高峰时段价格，UTC+8 09:00-12:00 及 14:00-18:00）
-  var PRICING = { 'deepseek-v4-flash': { usePeakPricing: true, offpeak: { hit: 0.05, miss: 1.5, output: 4.5 }, peak: { hit: 0.10, miss: 3.0, output: 9.0 } }, 'deepseek-v4-pro': { usePeakPricing: true, offpeak: { hit: 0.15, miss: 4.5, output: 13.5 }, peak: { hit: 0.30, miss: 9.0, output: 27.0 } } };
+  var PRICING = { 'deepseek-v4-flash': { usePeakPricing: true, offpeak: { hit: 0.05, miss: 1.5, output: 4.5 }, peak: { hit: 0.10, miss: 3.0, output: 9.0 } }, 'deepseek-v4-pro': { usePeakPricing: true, offpeak: { hit: 0.15, miss: 4.5, output: 13.5 }, peak: { hit: 0.30, miss: 9.0, output: 27.0 } }, 'deepseek-v4-flash-vision-exp': { usePeakPricing: true, offpeak: { hit: 0.05, miss: 1.5, output: 4.5 }, peak: { hit: 0.10, miss: 3.0, output: 9.0 } } };
   // ===== 默认高峰时段（可被 settings.peakHours 覆盖，格式 HH:mm，北京时区） =====
   var DEFAULT_PEAK_HOURS = [{ start: '09:00', end: '12:00' }, { start: '14:00', end: '18:00' }];
   // ===== 单个存档的历史记录上限（超出时保留最新的 MAX_HISTORY 条） =====
@@ -11,9 +11,13 @@
   // ===== 全局状态对象 =====
   // 涵盖当前存档、UI 开关、图表库加载状态、API 密钥、余额、设置和消息计数
   var state = { currentSave: null, saves: {}, lastUsage: null, panelOpen: false, chartPanelOpen: false, chartLibLoaded: false, chartModel: '__all__', overviewModel: '__all__', compareBefore: null, compareAfter: null, apiKey: '', balance: null, customBalance: null, settings: { autoBalance: false, balanceInterval: 10, debug: false, debugHit: 10000, debugMiss: 5000, debugOutput: 2000, debugModel: 'deepseek-v4-flash', debugDateStart: '', debugDateEnd: '', debugBatchCount: 30, useNewPricing: true, newPricingDate: new Date('2026-08-17T00:00:00+08:00').getTime(), customModels: [], peakHours: [{ start: '09:00', end: '12:00' }, { start: '14:00', end: '18:00' }], peakDot: true }, messageCount: 0 };
+  // ===== 判断是否为周末（北京时区：周六 / 周日） =====
+  // 周末全天按低谷价计费，不区分峰谷时段。与 _dsLocalDay 同法：时间戳 +8h 后取 UTC 星期
+  function isWeekendDay(timestamp) { var t = typeof timestamp === 'number' ? timestamp : (timestamp && timestamp.getTime ? timestamp.getTime() : 0); var day = new Date(t + 8 * 3600 * 1000).getUTCDay(); return day === 6 || day === 0; }
   // ===== 判断是否为高峰时段（UTC+8 时区） =====
   // 高峰时段：09:00-12:00（540-720 min）和 14:00-18:00（840-1080 min）
-  function isPeakHour(timestamp) { var d = new Date(timestamp); var totalMinutes = (d.getUTCHours() * 60 + d.getUTCMinutes() + 8 * 60) % 1440; var hours = (state.settings && state.settings.peakHours) || DEFAULT_PEAK_HOURS; for (var i = 0; i < hours.length; i++) { var h = hours[i]; if (!h || !h.start || !h.end) continue; var p = h.start.split(':'); var q = h.end.split(':'); var sp = parseInt(p[0]) * 60 + parseInt(p[1] || 0); var ep = parseInt(q[0]) * 60 + parseInt(q[1] || 0); if (sp < ep) { if (totalMinutes >= sp && totalMinutes < ep) return true; } else if (totalMinutes >= sp || totalMinutes < ep) { return true; } } return false; }
+  // 周末（周六/周日）全天按低谷价计费，视为非高峰
+  function isPeakHour(timestamp) { if (isWeekendDay(timestamp)) return false; var d = new Date(timestamp); var totalMinutes = (d.getUTCHours() * 60 + d.getUTCMinutes() + 8 * 60) % 1440; var hours = (state.settings && state.settings.peakHours) || DEFAULT_PEAK_HOURS; for (var i = 0; i < hours.length; i++) { var h = hours[i]; if (!h || !h.start || !h.end) continue; var p = h.start.split(':'); var q = h.end.split(':'); var sp = parseInt(p[0]) * 60 + parseInt(p[1] || 0); var ep = parseInt(q[0]) * 60 + parseInt(q[1] || 0); if (sp < ep) { if (totalMinutes >= sp && totalMinutes < ep) return true; } else if (totalMinutes >= sp || totalMinutes < ep) { return true; } } return false; }
   // 北京时区(UTC+8)的自然日 key（脚本定价按 UTC+8，图表分桶须与之同基准，避免凌晨 0-8 点记到前一天）
   function _dsLocalDay(ts) { var t = typeof ts === 'number' ? ts : ts.getTime(); return new Date(t + 8 * 3600 * 1000).toISOString().slice(0, 10); }
   // ===== 获取全部可统计模型列表（内置 PRICING keys ∪ 用户自定义模型） =====
@@ -25,7 +29,7 @@
   function getPricing(model) { var m = model || 'deepseek-v4-flash'; var base = PRICING[m] || PRICING['deepseek-v4-flash']; var cm = state.settings.customModels || []; for (var i = 0; i < cm.length; i++) { if (cm[i] && cm[i].model === m) return { usePeakPricing: cm[i].usePeakPricing !== false, offpeak: mergePrices(base.offpeak, cm[i].offpeak), peak: mergePrices(base.peak, cm[i].peak) }; } return base; }
   var isInitDone = false;
   function shortModel(m) { return m.replace(/^deepseek-/, 'DS-'); }
-  function shortModelV2(m) { if (m.indexOf('deepseek') !== -1) { if (m.indexOf('flash') !== -1) return 'V4F'; if (m.indexOf('pro') !== -1) return 'V4P'; } return shortModel(m); }
+  function shortModelV2(m) { if (m.indexOf('deepseek') !== -1) { if (m.indexOf('vision') !== -1) return 'V4F-V'; if (m.indexOf('flash') !== -1) return 'V4F'; if (m.indexOf('pro') !== -1) return 'V4P'; } return shortModel(m); }
   // ===== 判断模型是否设置了价格（内置定价表或设置中的自定义模型价格） =====
   function hasPriceForModel(model) { var m = model || 'deepseek-v4-flash'; if (PRICING[m]) return true; var cm = state.settings.customModels || []; for (var i = 0; i < cm.length; i++) { if (cm[i] && cm[i].model === m) return true; } return false; }
   function fmtCost(model, cost, digits) { return hasPriceForModel(model) ? '¥' + (cost || 0).toFixed(digits || 4) : '¥价格未设置'; }
@@ -84,7 +88,7 @@
   function isMobile() { var p = window.parent || window; return (p.innerWidth || 768) <= 760; } function syncViewportHeight() { try { var p = window.parent || window; var h = (p.visualViewport && p.visualViewport.height) || p.innerHeight || 640; p.document.documentElement.style.setProperty('--ds-vvh', Math.max(320, Math.round(h)) + 'px'); } catch(e) {} } 
 
 // ===== 版本号与更新检测 =====
-var _ds_current_version = "2.32";
+var _ds_current_version = "2.33";
 var _ds_github_repo = "janmk1453/deepseek-tavern-script";
 // 通过 GitHub Pages 原始文件检查新版本（避免 API 限流）
 function checkForUpdates() {
@@ -705,9 +709,9 @@ function init() {
   
   // ===== 根据 token 用量和定价表计算费用 =====
   // 支持新旧两套定价，新定价区分高峰/非高峰时段
-  function calcCost(u) { var model = u.model || 'deepseek-v4-flash'; if (!hasPriceForModel(model)) { return { input: 0, output: 0, total: 0, priceType: 'old' }; } var pricing = getPricing(model); var useNewPricing = state.settings.useNewPricing && u.timestamp >= state.settings.newPricingDate; var p; var priceType; if (useNewPricing && pricing.usePeakPricing !== false) { var isPeak = isPeakHour(u.timestamp); p = isPeak ? pricing.peak : pricing.offpeak; priceType = isPeak ? 'new-peak' : 'new-offpeak'; } else { p = pricing.offpeak; priceType = useNewPricing ? 'new-offpeak' : 'old'; } var ih = (u.prompt_cache_hit_tokens / 1e6) * p.hit; var im = (u.prompt_cache_miss_tokens / 1e6) * p.miss; var o = (u.completion_tokens / 1e6) * p.output; return { input: ih + im, output: o, total: ih + im + o, priceType: priceType }; }
+  function calcCost(u) { var model = u.model || 'deepseek-v4-flash'; if (!hasPriceForModel(model)) { return { input: 0, output: 0, total: 0, priceType: 'old' }; } var pricing = getPricing(model); var useNewPricing = state.settings.useNewPricing && u.timestamp >= state.settings.newPricingDate; var p; var priceType; if (useNewPricing && pricing.usePeakPricing !== false && isDeepSeekOfficialModel(model)) { var isPeak = isPeakHour(u.timestamp); p = isPeak ? pricing.peak : pricing.offpeak; priceType = isPeak ? 'new-peak' : 'new-offpeak'; } else { p = pricing.offpeak; priceType = useNewPricing ? 'new-offpeak' : 'old'; } var ih = (u.prompt_cache_hit_tokens / 1e6) * p.hit; var im = (u.prompt_cache_miss_tokens / 1e6) * p.miss; var o = (u.completion_tokens / 1e6) * p.output; return { input: ih + im, output: o, total: ih + im + o, priceType: priceType }; }
   // ===== 计算若缓存全部未命中将额外花费的金额（随定价表 miss−hit 差价联动，替代固定 0.98/M 系数） =====
-  function calcSavings(u) { var model = u.model || 'deepseek-v4-flash'; if (!hasPriceForModel(model)) { return 0; } var pricing = getPricing(model); var useNewPricing = state.settings.useNewPricing && u.timestamp >= state.settings.newPricingDate; var p; if (useNewPricing && pricing.usePeakPricing !== false) { p = isPeakHour(u.timestamp) ? pricing.peak : pricing.offpeak; } else { p = pricing.offpeak; } return ((u.prompt_cache_hit_tokens || 0) / 1e6) * (p.miss - p.hit); }
+  function calcSavings(u) { var model = u.model || 'deepseek-v4-flash'; if (!hasPriceForModel(model)) { return 0; } var pricing = getPricing(model); var useNewPricing = state.settings.useNewPricing && u.timestamp >= state.settings.newPricingDate; var p; if (useNewPricing && pricing.usePeakPricing !== false && isDeepSeekOfficialModel(model)) { p = isPeakHour(u.timestamp) ? pricing.peak : pricing.offpeak; } else { p = pricing.offpeak; } return ((u.prompt_cache_hit_tokens || 0) / 1e6) * (p.miss - p.hit); }
   // ===== 重新计算所有存档的汇总费用 =====
   // 在加载旧数据或切换定价模式后调用，确保统计一致性
   function recalcAllCosts() { Object.keys(state.saves).forEach(function(k) { var s = state.saves[k]; (s.history || []).forEach(function(h) { var u = { timestamp: h.timestamp, model: h.model, prompt_cache_hit_tokens: h.cache_hit_tokens || 0, prompt_cache_miss_tokens: h.cache_miss_tokens || 0, completion_tokens: h.completion_tokens || 0 }; var c = calcCost(u); h.input_cost = c.input; h.output_cost = c.output; h.cost = c.total; h.priceType = c.priceType; h.cache_hit_rate = (h.cache_hit_tokens || 0) + (h.cache_miss_tokens || 0) > 0 ? ((h.cache_hit_tokens || 0) / ((h.cache_hit_tokens || 0) + (h.cache_miss_tokens || 0)) * 100) : 0; }); if (s.history && s.history.length > MAX_HISTORY) s.history = s.history.slice(0, MAX_HISTORY); }); saveSaves(); }
@@ -1152,6 +1156,7 @@ doc.getElementById('ds-save-select').onchange = function(e) { state.currentSave 
   function getPeakDotStatus(now) {
     now = now || Date.now();
     var hours = (state.settings && state.settings.peakHours) || DEFAULT_PEAK_HOURS;
+    if (isWeekendDay(now)) return { color: '#22c55e', label: '当前为周末全天低谷价（非高峰时段）' };
     if (isPeakHour(now)) return { color: '#ef4444', label: '当前为高峰时段（价格上调）' };
     var d = new Date(now);
     var totalMinutes = (d.getUTCHours() * 60 + d.getUTCMinutes() + 8 * 60) % 1440;
