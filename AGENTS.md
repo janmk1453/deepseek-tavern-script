@@ -108,7 +108,32 @@ Release notes 必须遵循以下固定格式：
 - **Pricing** — `PRICING` object at top: `{ offpeak: {...}, peak: {...} }` per model; `isPeakHour()` uses Beijing timezone
 - **Version** — `_ds_current_version` variable near top of JS is the single source of truth; the title-bar release badge reads it dynamically (`release' + _ds_current_version + '`), never hardcode the version in `PANEL_HTML`
 - **API patching** — monkey-patches `fetch` globally to intercept API responses and record usage
+- **Persistence failure handling** — `saveData` double-writes (`replaceVariables` via `saveWithRetry` + `localStorage` via `saveToLS`); if both fail it issues `_ds_log.error` + `_ds_toast('error', ...)`. `loadSavedData` backs up a corrupt saves blob to `ds_saves_corrupt_backup_<ts>` before resetting, so a partial corrupt file is never silently overwritten by `createNewSave()`.
 - **Update check** — fetches latest version from GitHub Pages raw file (not API)
+
+## Logging & Error Handling
+
+**Always route logs through the `_ds_log` helper (defined near top of JS), never bare `console.log`.** Bare `console.*` in shipped code is a regression.
+
+```js
+_ds_log.debug(...);  // 默认关闭；localStorage.setItem('ds_debug_log','1') 开启
+_ds_log.warn(...);   // 同类（按首参数）去重，防止刷屏
+_ds_log.error(...);  // 失败点永远可见
+_ds_toast(type, msg); // toastr 包装；toastr 不可用时仅 debug 提示
+```
+
+Console filtering: type `-[DS]` to isolate this script's logs.
+
+**Empty `catch` grading (decision matrix)** — never add a bare `catch(e) {}` without judgment:
+
+| Failure consequence | Required action |
+|--------------------|-----------------|
+| Data loss / lost stats record | `_ds_log.error` + `_ds_toast('error', ...)`; back up corrupt source before wiping |
+| Feature degraded but usable | `_ds_log.warn`, degrade silently |
+| Optional side-effect (notify, cleanup) | `_ds_toast` / `_ds_log.debug`, plus a one-line comment stating *why* it's safe to swallow |
+| Known fallback path (e.g. decrypt legacy plaintext) | Keep fallback + `_ds_log.debug` |
+
+**Key spots that must never be silent**: `saveWithRetry`/`saveToLS`/`saveData` (persistence), `loadSavedData`'s `JSON.parse` (esp. `saves`), and `_ds_parseRes`'s `processUsage` call (per-request stats write). Note `_ds_parseRes` deliberately narrows its `try` to parsing only — a parse failure is `warn`, but a `processUsage` failure is `error` + toast.
 
 ## Modals & Overlays in SillyTavern
 

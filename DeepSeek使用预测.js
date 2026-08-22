@@ -14,6 +14,8 @@
   // ===== 判断是否为高峰时段（UTC+8 时区） =====
   // 高峰时段：09:00-12:00（540-720 min）和 14:00-18:00（840-1080 min）
   function isPeakHour(timestamp) { var d = new Date(timestamp); var totalMinutes = (d.getUTCHours() * 60 + d.getUTCMinutes() + 8 * 60) % 1440; var hours = (state.settings && state.settings.peakHours) || DEFAULT_PEAK_HOURS; for (var i = 0; i < hours.length; i++) { var h = hours[i]; if (!h || !h.start || !h.end) continue; var p = h.start.split(':'); var q = h.end.split(':'); var sp = parseInt(p[0]) * 60 + parseInt(p[1] || 0); var ep = parseInt(q[0]) * 60 + parseInt(q[1] || 0); if (sp < ep) { if (totalMinutes >= sp && totalMinutes < ep) return true; } else if (totalMinutes >= sp || totalMinutes < ep) { return true; } } return false; }
+  // 北京时区(UTC+8)的自然日 key（脚本定价按 UTC+8，图表分桶须与之同基准，避免凌晨 0-8 点记到前一天）
+  function _dsLocalDay(ts) { var t = typeof ts === 'number' ? ts : ts.getTime(); return new Date(t + 8 * 3600 * 1000).toISOString().slice(0, 10); }
   // ===== 获取全部可统计模型列表（内置 PRICING keys ∪ 用户自定义模型） =====
   // 用于图表面板模型切换、调试模式模型下拉及模型有效性校验
   function getModelList() { var set = {}; Object.keys(PRICING).forEach(function(k) { set[k] = 1; }); (state.settings.customModels || []).forEach(function(m) { if (m && m.model) set[m.model] = 1; }); return Object.keys(set); }
@@ -50,19 +52,39 @@
   var LAST_VERSION_STORAGE = 'ds_last_version';                  // 上次运行的脚本版本号（用于版本迁移）
   var EXPORT_FORMAT_VERSION = 1;                                 // 导入导出文件格式版本（结构性变更时 +1，并提供迁移）
   
+  // ===== 统一日志工具（error 永远可见，warn 同类去重防刷屏，debug 默认关闭） =====
+  // 开启 debug：localStorage.setItem('ds_debug_log','1')；控制台用 -[DS] 过滤全部脚本日志
+  var _ds_log = (function() {
+    var PREFIX = '[DS]';
+    var warned = {};
+    var debugOn = false;
+    try { debugOn = localStorage.getItem('ds_debug_log') === '1'; } catch(e) {}
+    function args(a) { var out = [PREFIX]; for (var i = 0; i < a.length; i++) out.push(a[i]); return out; }
+    return {
+      debug: function() { if (debugOn) console.log.apply(console, args(arguments)); },
+      warn: function() { var k = String(arguments[0]); if (warned[k]) return; warned[k] = true; console.warn.apply(console, args(arguments)); },
+      error: function() { console.error.apply(console, args(arguments)); }
+    };
+  })();
+  // ===== 轻提示，toastr 不可用时仅 debug 提示（避免影响主流程） =====
+  function _ds_toast(type, msg) {
+    try { var t = (window.parent || window).toastr; if (t && t[type]) { t[type](msg); return; } if (window.toastr && window.toastr[type]) { window.toastr[type](msg); } }
+    catch(e) { _ds_log.debug('toastr 不可用，提示降级: ' + msg); }
+  }
+  
   // ===== 持久化存储工具（双写：酒馆变量 + localStorage） =====
   function saveWithRetry(key, value) { for (var i = 0; i < 3; i++) { try { var v = getAllVariables(); v[key] = value; replaceVariables(v); return true; } catch(e) {} } return false; }
   function loadWithRetry(key) { for (var i = 0; i < 3; i++) { try { var v = getAllVariables(); return v[key] || null; } catch(e) {} } return null; }
-  function saveToLS(key, value) { try { localStorage.setItem('ds_' + key, value); } catch(e) {} }
+  function saveToLS(key, value) { try { localStorage.setItem('ds_' + key, value); return true; } catch(e) { _ds_log.warn('LS 写入失败 key=' + key + '：' + ((e && e.message) || e)); return false; } }
   function loadFromLS(key) { try { return localStorage.getItem('ds_' + key); } catch(e) { return null; } }
-  function saveData(key, value) { saveWithRetry(key, value); saveToLS(key, value); }
+  function saveData(key, value) { var okV = saveWithRetry(key, value); var okL = saveToLS(key, value); if (!okV && !okL) { _ds_log.error('数据持久化完全失败 key=' + key + '，本轮数据可能丢失'); _ds_toast('error', '统计数据保存失败（浏览器存储不可用），数据可能在刷新后丢失'); } }
   function loadData(key) { var v = loadWithRetry(key); if (v === null) v = loadFromLS(key); return v; }
   
   // ===== 工具函数 =====
   function isMobile() { var p = window.parent || window; return (p.innerWidth || 768) <= 760; } function syncViewportHeight() { try { var p = window.parent || window; var h = (p.visualViewport && p.visualViewport.height) || p.innerHeight || 640; p.document.documentElement.style.setProperty('--ds-vvh', Math.max(320, Math.round(h)) + 'px'); } catch(e) {} } 
 
 // ===== 版本号与更新检测 =====
-var _ds_current_version = "2.31";
+var _ds_current_version = "2.32";
 var _ds_github_repo = "janmk1453/deepseek-tavern-script";
 // 通过 GitHub Pages 原始文件检查新版本（避免 API 限流）
 function checkForUpdates() {
@@ -114,7 +136,7 @@ function init() {
     recalcAllCosts(); // 重新计算所有存档的费用和缓存率
       setupEvents(); // 注册酒馆事件监听
       setupVisibilityFix(); // 注册页面可见性监听（修复切回标签页后 UI 空白）
-      console.log('[DS] init');createUI(); // 创建主面板 DOM
+      createUI(); // 创建主面板 DOM
     patchFetch(); // 拦截 fetch 以捕获 API 用量
     state.panelOpen = false;
     initTimestamp = Date.now();
@@ -170,13 +192,13 @@ function init() {
     try { 
       state.apiKey = decryptKey(loadData(KEY_STORAGE)) || ''; 
       var bd = loadData(BALANCE_STORAGE); 
-      if (bd) { try { state.balance = JSON.parse(bd); } catch(e) {} }
+      if (bd) { try { state.balance = JSON.parse(bd); } catch(e) { _ds_log.warn('余额数据解析失败', ((e && e.message) || e)); } }
       var cbd = loadData(CUSTOM_BALANCE_STORAGE);
       if (cbd) { state.customBalance = cbd; }
       var sd = loadData(SAVES_STORAGE); 
-      if (sd) { try { state.saves = JSON.parse(sd); } catch(e) {} }
+      if (sd) { try { state.saves = JSON.parse(sd); } catch(e) { _ds_log.error('存档 JSON 解析失败，原始数据已备份', ((e && e.message) || e)); try { localStorage.setItem('ds_saves_corrupt_backup_' + Date.now(), sd); } catch(e2) {} state.saves = {}; _ds_toast('warning', '存档数据损坏已重置；原始数据已备份（ds_saves_corrupt_backup_*）'); } }
       var std = loadData(SETTINGS_STORAGE); 
-      if (std) { try { state.settings = JSON.parse(std); } catch(e) {} }
+      if (std) { try { state.settings = JSON.parse(std); } catch(e) { _ds_log.warn('设置 JSON 解析失败，使用默认设置', ((e && e.message) || e)); } }
       if (state.settings.useNewPricing === undefined) state.settings.useNewPricing = true;
       if (state.settings.newPricingDate === undefined) state.settings.newPricingDate = new Date('2026-08-17T00:00:00+08:00').getTime(); if (state.settings.customModels === undefined) state.settings.customModels = []; if (state.settings.peakHours === undefined) state.settings.peakHours = JSON.parse(JSON.stringify(DEFAULT_PEAK_HOURS)); if (state.settings.peakDot === undefined) state.settings.peakDot = true;
       // 版本迁移：从旧版本（< 2.28）升级后的首次运行，强制启用新价格机制并设置为 2026-08-17 生效，高峰时段恢复默认
@@ -674,7 +696,7 @@ function init() {
   // 仅拦截 TARGET_API 路径的请求，提取 usage 并传给 processUsage
   // 调试模式下直接用模拟数据返回，不实际请求 API
   function patchFetch() { var p = window.parent || window; if (p._ds_fetch_patched) return; var rawFetch = p.fetch; p.fetch = function() { var args = arguments; var url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url); if (url && url.indexOf(TARGET_API) !== -1) { var _ds_reqBody = null; try { _ds_reqBody = JSON.parse(args[1].body); } catch(e){} var _ds_fullReq = _ds_reqBody ? JSON.parse(JSON.stringify(_ds_reqBody)) : null; var _ds_msgs = []; if (_ds_reqBody && _ds_reqBody.messages && _ds_reqBody.messages.length) { try { _ds_msgs = _ds_reqBody.messages.slice(-10); } catch(e){} } var _ds_startTime = Date.now();
-       if (state.settings.debug) { var fakeUsage = { prompt_cache_hit_tokens: state.settings.debugHit, prompt_cache_miss_tokens: state.settings.debugMiss, completion_tokens: state.settings.debugOutput, total_tokens: state.settings.debugHit + state.settings.debugMiss + state.settings.debugOutput }; var fakeResponse = { choices: [{ message: { content: '[调试模式] 此响应为模拟数据，未产生API费用' } }], usage: fakeUsage, model: state.settings.debugModel }; setTimeout(function() { try { var _p = window.parent || window; var _ctx = _p.SillyTavern && _p.SillyTavern.getContext && _p.SillyTavern.getContext(); var _chat = (_ctx && _ctx.chat) || []; var _chatMsgs = []; _chat.forEach(function(m){ if(m && m.mes) _chatMsgs.push({role:m.is_user?'user':'assistant',content:m.mes}); }); _ds_msgs = _chatMsgs.slice(-10); _ds_fullReq = null; } catch(e){} processUsage(fakeUsage, state.settings.debugModel, _ds_msgs, _ds_startTime, _ds_fullReq, fakeResponse, 0, 0); }, 100); return Promise.resolve(new Response(JSON.stringify(fakeResponse), { status: 200, headers: { 'Content-Type': 'application/json' } })); } return rawFetch.apply(p, args).then(function(res) { var clone = res.clone(); var _ds_ttft = 0; var _ds_thinkStart = 0; var _ds_thinkEnd = 0; var _ds_parseRes = function(text, ttftVal, thinkTimeVal) { try { var data = null; var trimmed = text.trim(); if (trimmed.startsWith('{')) { data = JSON.parse(trimmed); } else { text.split('\n').forEach(function(line) { if (line.startsWith('data: ') && line !== 'data: [DONE]') { try { var chunk = JSON.parse(line.substring(6)); if (chunk.usage) data = chunk; } catch(e) {} } }); } if (data && data.usage) { processUsage(data.usage, _ds_extractModel(data, _ds_fullReq), _ds_msgs, _ds_startTime, _ds_fullReq, data, ttftVal, thinkTimeVal) } } catch(e) {} }; var _ds_extractModel = function(data, fullReq) { try { if (data && data.model) return data.model; if (data && data.choices && data.choices[0] && data.choices[0].model) return data.choices[0].model; if (data && data.body && data.body.model) return data.body.model; if (fullReq && fullReq.model) return fullReq.model; } catch(e) {} return null; }; var _ds_reader = clone.body && clone.body.getReader ? clone.body.getReader() : null; if (_ds_reader) { var _ds_buf = ''; var _ds_dec = new TextDecoder('utf-8'); var _ds_pump = function() { return _ds_reader.read().then(function(r) { if (r.done) { try { _ds_parseRes(_ds_buf, _ds_ttft || (Date.now() - _ds_startTime), _ds_thinkStart && _ds_thinkEnd ? (_ds_thinkEnd - _ds_thinkStart) : 0); } catch(e) {} return; } var _ds_chunkText = _ds_dec.decode(r.value, { stream: true }); _ds_buf += _ds_chunkText; if (!_ds_ttft && /"reasoning_content"\s*:\s*"(?:[^"\\]|\\.)/.test(_ds_buf)) _ds_ttft = Date.now() - _ds_startTime; if (!_ds_ttft && /"content"\s*:\s*"(?:[^"\\]|\\.)/.test(_ds_buf)) _ds_ttft = Date.now() - _ds_startTime; if (/"reasoning_content"\s*:\s*"(?:[^"\\]|\\.)/.test(_ds_chunkText)) { if (!_ds_thinkStart) _ds_thinkStart = Date.now(); _ds_thinkEnd = Date.now(); } return _ds_pump(); }); }; _ds_pump().catch(function(err) { console.error("[DS] stream read error", err); }); } else { clone.text().then(function(text) { try { _ds_parseRes(text, Date.now() - _ds_startTime, 0); } catch(e) {} }).catch(function(err) { console.error("[DS] text() error", err); }); } return res; }); } return rawFetch.apply(p, args); }; p._ds_fetch_patched = true; }
+       if (state.settings.debug) { var fakeUsage = { prompt_cache_hit_tokens: state.settings.debugHit, prompt_cache_miss_tokens: state.settings.debugMiss, completion_tokens: state.settings.debugOutput, total_tokens: state.settings.debugHit + state.settings.debugMiss + state.settings.debugOutput }; var fakeResponse = { choices: [{ message: { content: '[调试模式] 此响应为模拟数据，未产生API费用' } }], usage: fakeUsage, model: state.settings.debugModel }; setTimeout(function() { try { var _p = window.parent || window; var _ctx = _p.SillyTavern && _p.SillyTavern.getContext && _p.SillyTavern.getContext(); var _chat = (_ctx && _ctx.chat) || []; var _chatMsgs = []; _chat.forEach(function(m){ if(m && m.mes) _chatMsgs.push({role:m.is_user?'user':'assistant',content:m.mes}); }); _ds_msgs = _chatMsgs.slice(-10); _ds_fullReq = null; } catch(e){} processUsage(fakeUsage, state.settings.debugModel, _ds_msgs, _ds_startTime, _ds_fullReq, fakeResponse, 0, 0); }, 100); return Promise.resolve(new Response(JSON.stringify(fakeResponse), { status: 200, headers: { 'Content-Type': 'application/json' } })); } return rawFetch.apply(p, args).then(function(res) { var clone = res.clone(); var _ds_ttft = 0; var _ds_thinkStart = 0; var _ds_thinkEnd = 0; var _ds_parseRes = function(text, ttftVal, thinkTimeVal) { var data = null; try { var trimmed = text.trim(); if (trimmed.startsWith('{')) { data = JSON.parse(trimmed); } else { text.split('\n').forEach(function(line) { if (line.startsWith('data: ') && line !== 'data: [DONE]') { try { var chunk = JSON.parse(line.substring(6)); if (chunk.usage) data = chunk; } catch(e) {} } }); } } catch(e) { _ds_log.warn('用量响应解析失败', ((e && e.message) || e)); return; } if (data && data.usage) { try { processUsage(data.usage, _ds_extractModel(data, _ds_fullReq), _ds_msgs, _ds_startTime, _ds_fullReq, data, ttftVal, thinkTimeVal); } catch(e) { _ds_log.error('用量记录写入失败，本次请求统计已丢失', ((e && e.message) || e)); _ds_toast('error', '统计记录失败：' + ((e && e.message) || e)); } } }; var _ds_extractModel = function(data, fullReq) { try { if (data && data.model) return data.model; if (data && data.choices && data.choices[0] && data.choices[0].model) return data.choices[0].model; if (data && data.body && data.body.model) return data.body.model; if (fullReq && fullReq.model) return fullReq.model; } catch(e) {} return null; }; var _ds_reader = clone.body && clone.body.getReader ? clone.body.getReader() : null; if (_ds_reader) { var _ds_buf = ''; var _ds_dec = new TextDecoder('utf-8'); var _ds_pump = function() { return _ds_reader.read().then(function(r) { if (r.done) { try { _ds_parseRes(_ds_buf, _ds_ttft || (Date.now() - _ds_startTime), _ds_thinkStart && _ds_thinkEnd ? (_ds_thinkEnd - _ds_thinkStart) : 0); } catch(e) {} return; } var _ds_chunkText = _ds_dec.decode(r.value, { stream: true }); _ds_buf += _ds_chunkText; if (!_ds_ttft && /"reasoning_content"\s*:\s*"(?:[^"\\]|\\.)/.test(_ds_buf)) _ds_ttft = Date.now() - _ds_startTime; if (!_ds_ttft && /"content"\s*:\s*"(?:[^"\\]|\\.)/.test(_ds_buf)) _ds_ttft = Date.now() - _ds_startTime; if (/"reasoning_content"\s*:\s*"(?:[^"\\]|\\.)/.test(_ds_chunkText)) { if (!_ds_thinkStart) _ds_thinkStart = Date.now(); _ds_thinkEnd = Date.now(); } return _ds_pump(); }); }; _ds_pump().catch(function(err) { console.error("[DS] stream read error", err); }); } else { clone.text().then(function(text) { try { _ds_parseRes(text, Date.now() - _ds_startTime, 0); } catch(e) {} }).catch(function(err) { console.error("[DS] text() error", err); }); } return res; }); } return rawFetch.apply(p, args); }; p._ds_fetch_patched = true; }
   
   // ===== 处理单次 API 调用用量 =====
   // 从 usage 中提取 token 数，计算费用，更新当前存档和历史记录
@@ -684,9 +706,11 @@ function init() {
   // ===== 根据 token 用量和定价表计算费用 =====
   // 支持新旧两套定价，新定价区分高峰/非高峰时段
   function calcCost(u) { var model = u.model || 'deepseek-v4-flash'; if (!hasPriceForModel(model)) { return { input: 0, output: 0, total: 0, priceType: 'old' }; } var pricing = getPricing(model); var useNewPricing = state.settings.useNewPricing && u.timestamp >= state.settings.newPricingDate; var p; var priceType; if (useNewPricing && pricing.usePeakPricing !== false) { var isPeak = isPeakHour(u.timestamp); p = isPeak ? pricing.peak : pricing.offpeak; priceType = isPeak ? 'new-peak' : 'new-offpeak'; } else { p = pricing.offpeak; priceType = useNewPricing ? 'new-offpeak' : 'old'; } var ih = (u.prompt_cache_hit_tokens / 1e6) * p.hit; var im = (u.prompt_cache_miss_tokens / 1e6) * p.miss; var o = (u.completion_tokens / 1e6) * p.output; return { input: ih + im, output: o, total: ih + im + o, priceType: priceType }; }
+  // ===== 计算若缓存全部未命中将额外花费的金额（随定价表 miss−hit 差价联动，替代固定 0.98/M 系数） =====
+  function calcSavings(u) { var model = u.model || 'deepseek-v4-flash'; if (!hasPriceForModel(model)) { return 0; } var pricing = getPricing(model); var useNewPricing = state.settings.useNewPricing && u.timestamp >= state.settings.newPricingDate; var p; if (useNewPricing && pricing.usePeakPricing !== false) { p = isPeakHour(u.timestamp) ? pricing.peak : pricing.offpeak; } else { p = pricing.offpeak; } return ((u.prompt_cache_hit_tokens || 0) / 1e6) * (p.miss - p.hit); }
   // ===== 重新计算所有存档的汇总费用 =====
   // 在加载旧数据或切换定价模式后调用，确保统计一致性
-  function recalcAllCosts() { Object.keys(state.saves).forEach(function(k) { var s = state.saves[k]; s.total_tokens = 0; s.total_cost = 0; s.input_tokens = 0; s.output_tokens = 0; s.cache_hit_tokens = 0; s.cache_miss_tokens = 0; s.input_cost = 0; s.output_cost = 0; s.rounds = 0; (s.history || []).forEach(function(h) { var u = { timestamp: h.timestamp, model: h.model, prompt_cache_hit_tokens: h.cache_hit_tokens || 0, prompt_cache_miss_tokens: h.cache_miss_tokens || 0, completion_tokens: h.completion_tokens || 0 }; var c = calcCost(u); h.input_cost = c.input; h.output_cost = c.output; h.cost = c.total; h.priceType = c.priceType; h.cache_hit_rate = (h.cache_hit_tokens || 0) + (h.cache_miss_tokens || 0) > 0 ? ((h.cache_hit_tokens || 0) / ((h.cache_hit_tokens || 0) + (h.cache_miss_tokens || 0)) * 100) : 0; s.total_tokens += h.total_tokens || 0; s.total_cost += h.cost; s.input_tokens += (h.prompt_tokens || 0); s.output_tokens += h.completion_tokens || 0; s.cache_hit_tokens += h.cache_hit_tokens || 0; s.cache_miss_tokens += h.cache_miss_tokens || 0; s.input_cost += c.input; s.output_cost += c.output; if (isDeepSeekOfficialModel(h.model)) { s.rounds += 1; } }); if (s.history && s.history.length > MAX_HISTORY) s.history = s.history.slice(0, MAX_HISTORY); }); saveSaves(); }
+  function recalcAllCosts() { Object.keys(state.saves).forEach(function(k) { var s = state.saves[k]; (s.history || []).forEach(function(h) { var u = { timestamp: h.timestamp, model: h.model, prompt_cache_hit_tokens: h.cache_hit_tokens || 0, prompt_cache_miss_tokens: h.cache_miss_tokens || 0, completion_tokens: h.completion_tokens || 0 }; var c = calcCost(u); h.input_cost = c.input; h.output_cost = c.output; h.cost = c.total; h.priceType = c.priceType; h.cache_hit_rate = (h.cache_hit_tokens || 0) + (h.cache_miss_tokens || 0) > 0 ? ((h.cache_hit_tokens || 0) / ((h.cache_hit_tokens || 0) + (h.cache_miss_tokens || 0)) * 100) : 0; }); if (s.history && s.history.length > MAX_HISTORY) s.history = s.history.slice(0, MAX_HISTORY); }); saveSaves(); }
   // ===== 批量生成调试模拟数据 =====
   function generateDebugBatch() {
     var s = getSelectedSave();
@@ -731,6 +755,7 @@ function init() {
         var hitRate = promptTotal > 0 ? (h / promptTotal * 100) : 0;
         var fakeUsage = { prompt_cache_hit_tokens: h, prompt_cache_miss_tokens: m, completion_tokens: o, total_tokens: total };
         var c = calcCost({ timestamp: ts.getTime(), model: model, prompt_cache_hit_tokens: h, prompt_cache_miss_tokens: m, completion_tokens: o });
+        s.total_tokens += total; s.total_cost += c.total; s.input_tokens += promptTotal; s.output_tokens += o; s.cache_hit_tokens += h; s.cache_miss_tokens += m; s.input_cost += c.input; s.output_cost += c.output; if (isDeepSeekOfficialModel(model)) { s.rounds += 1; }
         s.history.unshift({
           timestamp: ts.getTime(),
           model: model,
@@ -1330,7 +1355,7 @@ function toggleCharts() {
   } else {
     ov.style.display = 'block';
     pn.classList.add('ds-open');
-    state.chartPanelOpen = true;state.chartPanelOpen = true;
+    state.chartPanelOpen = true;
     renderCharts();
   }
 }
@@ -1384,7 +1409,7 @@ function createChartUI() {
   dsStyle.textContent = '@media(min-width:761px){#ds-chart-panel{position:fixed!important;top:50%!important;left:50%!important;transform:translate(-50%,-50%) scale(0.95)!important;opacity:0!important;pointer-events:none!important;transition:opacity 0.2s ease,transform 0.2s ease!important;width:min(1200px,80%)!important;height:min(1400px,calc(100vh - 24px))!important;max-height:min(1400px,calc(100vh - 24px))!important;border-radius:12px!important;border-top:1px solid #374151!important}#ds-chart-panel.ds-open{transform:translate(-50%,-50%) scale(1)!important;opacity:1!important;pointer-events:auto!important}}@media(max-width:760px){#ds-chart-panel{display:flex!important;width:100vw!important;height:100vh!important;max-height:none!important;border-radius:0!important;top:0!important;border-top:1px solid #374151!important;transform:translateY(100%)!important;opacity:0!important;pointer-events:none!important;transition:opacity 0.2s ease,transform 0.2s ease!important}#ds-chart-panel.ds-open{display:flex!important;transform:translateY(0)!important;opacity:1!important;pointer-events:auto!important}}';
   doc.head.appendChild(dsStyle);
   doc.getElementById('ds-btn-close-charts').onclick = closeCharts;
-  doc.getElementById('ds-btn-chart-help').addEventListener('click', function() { console.log('[DS Chart] Help clicked'); var he = doc.getElementById('ds-chart-help'); if (he) { console.log('[DS Chart] Help el found, current display:', he.style.display); he.style.display = he.style.display === 'none' ? 'block' : 'none'; console.log('[DS Chart] New display:', he.style.display); } else { console.log('[DS Chart] Help el NOT FOUND'); } });
+  doc.getElementById('ds-btn-chart-help').addEventListener('click', function() { var he = doc.getElementById('ds-chart-help'); if (he) { he.style.display = he.style.display === 'none' ? 'block' : 'none'; } });
   doc.getElementById('ds-btn-chart-reset').onclick = function() { resetChartZoom(); };
   ['token','cost','rate','duration'].forEach(function(k) {
     var el = doc.getElementById('ds-toggle-' + k);
@@ -1512,7 +1537,7 @@ function createChartUI() {
     if (newPricingToggle) { newPricingToggle.onchange = function() { state.settings.useNewPricing = this.checked; if (newPricingSlider) newPricingSlider.style.left = this.checked ? '23px' : '3px'; if (newPricingPanel) newPricingPanel.style.display = this.checked ? 'block' : 'none'; saveSettings(); recalcAllCosts(); refreshUI(); }; }
     if (newPricingDate) { newPricingDate.onchange = function() { if (this.value) { var pp = this.value.split('-'); state.settings.newPricingDate = new Date(pp[0] + '-' + pp[1] + '-' + pp[2] + 'T00:00:00+08:00').getTime(); } else { state.settings.newPricingDate = 0; } saveSettings(); recalcAllCosts(); refreshUI(); }; }
     var pricingTodayBtn = doc.getElementById('ds-btn-pricing-today');
-    if (pricingTodayBtn) { pricingTodayBtn.onclick = function() { var d = new Date(); d.setHours(0,0,0,0); state.settings.newPricingDate = d.getTime(); if (newPricingDate) newPricingDate.value = d.toISOString().split('T')[0]; if (newPricingToggle && !newPricingToggle.checked) { newPricingToggle.checked = true; if (newPricingSlider) newPricingSlider.style.left = '23px'; if (newPricingPanel) newPricingPanel.style.display = 'block'; } saveSettings(); recalcAllCosts(); refreshUI(); }; }
+    if (pricingTodayBtn) { pricingTodayBtn.onclick = function() { var d = new Date(); d.setHours(0,0,0,0); state.settings.newPricingDate = d.getTime(); if (newPricingDate) newPricingDate.value = _dsLocalDay(d.getTime()); if (newPricingToggle && !newPricingToggle.checked) { newPricingToggle.checked = true; if (newPricingSlider) newPricingSlider.style.left = '23px'; if (newPricingPanel) newPricingPanel.style.display = 'block'; } saveSettings(); recalcAllCosts(); refreshUI(); }; }
     var peakDotToggle = doc.getElementById('ds-peak-dot');
     var peakDotSlider = doc.getElementById('ds-peak-dot-slider');
     if (peakDotToggle) { peakDotToggle.onchange = function() { state.settings.peakDot = this.checked; if (peakDotSlider) peakDotSlider.style.left = this.checked ? '23px' : '3px'; saveSettings(); updatePeakDot(); }; }
@@ -1567,11 +1592,10 @@ function createChartUI() {
     if (newPricingSlider) newPricingSlider.style.left = state.settings.useNewPricing ? '23px' : '3px';
     if (newPricingPanel) newPricingPanel.style.display = state.settings.useNewPricing ? 'block' : 'none';
     if (newPricingDate) {
-      try {
-        var d = new Date(state.settings.newPricingDate);
-        if (isNaN(d.getTime())) throw new Error();
-        newPricingDate.value = state.settings.newPricingDate === 0 ? '' : d.toISOString().split('T')[0];
-      } catch(e) {}
+      var d = new Date(state.settings.newPricingDate);
+      if (!isNaN(d.getTime())) {
+        newPricingDate.value = state.settings.newPricingDate === 0 ? '' : _dsLocalDay(d.getTime());
+      }
     }
     var peakDotToggle = doc.getElementById('ds-peak-dot');
     var peakDotSlider = doc.getElementById('ds-peak-dot-slider');
@@ -1603,7 +1627,7 @@ var _dayAggCache = null;
 function aggregateByDay(entries) {
   var dayMap = {};
   entries.forEach(function(e) {
-    var key = new Date(e.timestamp).toISOString().slice(0, 10);
+    var key = _dsLocalDay(e.timestamp);
     if (!dayMap[key]) dayMap[key] = { count: 0, total_tokens: 0, cost: 0, cache_hit_tokens: 0, cache_miss_tokens: 0, completion_tokens: 0, input_cost: 0, output_cost: 0, prompt_tokens: 0, duration: 0, tokenRateSum: 0, rateCount: 0, models: [] };
     var d = dayMap[key];
     d.count++;
@@ -1646,7 +1670,7 @@ function resetChartZoom() {
 // ===== 图表底部滑块状态 =====
 var _chartSliders={token:{total:0,viewStart:0,viewEnd:0,trackEl:null,thumbEl:null,labelEl:null,dragging:null,dragOffset:0,dragStartVS:0,dragStartVE:0},cost:{total:0,viewStart:0,viewEnd:0,trackEl:null,thumbEl:null,labelEl:null,dragging:null,dragOffset:0,dragStartVS:0,dragStartVE:0},rate:{total:0,viewStart:0,viewEnd:0,trackEl:null,thumbEl:null,labelEl:null,dragging:null,dragOffset:0,dragStartVS:0,dragStartVE:0},requests:{total:0,viewStart:0,viewEnd:0,trackEl:null,thumbEl:null,labelEl:null,dragging:null,dragOffset:0,dragStartVS:0,dragStartVE:0},duration:{total:0,viewStart:0,viewEnd:0,trackEl:null,thumbEl:null,labelEl:null,dragging:null,dragOffset:0,dragStartVS:0,dragStartVE:0}};
 // ===== 初始化图表滑块 =====
-function initChartSliders(){var p=window.parent||window;var doc=p.document;["token","cost","rate","requests","duration"].forEach(function(key){var track=doc.getElementById("ds-slider-"+key+"-track");var thumb=doc.getElementById("ds-slider-"+key+"-thumb");var label=doc.getElementById("ds-slider-"+key+"-label");if(!track||!thumb||!label)return;var s=_chartSliders[key];s.trackEl=track;s.thumbEl=thumb;s.labelEl=label;var chart=_chartInstances[key];if(!chart)return;var total=chart.data.labels.length;var min=chart.scales.x.options.min!==undefined?chart.scales.x.options.min:0;var max=chart.scales.x.options.max!==undefined?chart.scales.x.options.max:total-1;s.total=total;s.viewStart=Math.max(0,Math.round(min));s.viewEnd=Math.min(total-1,Math.round(max));updateSliderVisual(key);thumb.addEventListener("pointerdown",function(e){onSliderPointerDown(e,key);});track.addEventListener("click",function(e){onSliderTrackClick(e,key);});});}
+function initChartSliders(){var p=window.parent||window;var doc=p.document;["token","cost","rate","requests","duration"].forEach(function(key){var track=doc.getElementById("ds-slider-"+key+"-track");var thumb=doc.getElementById("ds-slider-"+key+"-thumb");var label=doc.getElementById("ds-slider-"+key+"-label");if(!track||!thumb||!label)return;var s=_chartSliders[key];s.trackEl=track;s.thumbEl=thumb;s.labelEl=label;var chart=_chartInstances[key];if(!chart)return;var total=chart.data.labels.length;var min=chart.scales.x.options.min!==undefined?chart.scales.x.options.min:0;var max=chart.scales.x.options.max!==undefined?chart.scales.x.options.max:total-1;s.total=total;s.viewStart=Math.max(0,Math.round(min));s.viewEnd=Math.min(total-1,Math.round(max));updateSliderVisual(key);if(s._boundTrack===track&&s._boundThumb===thumb)return;s._trackClick=function(e){onSliderTrackClick(e,key);};s._thumbDown=function(e){onSliderPointerDown(e,key);};thumb.addEventListener("pointerdown",s._thumbDown);track.addEventListener("click",s._trackClick);s._boundTrack=track;s._boundThumb=thumb;});}
 // ===== 更新滑块视觉位置 =====
 function updateSliderVisual(key){var s=_chartSliders[key];if(!s||!s.trackEl||!s.thumbEl||!s.labelEl||s.total<=0)return;var tw=s.trackEl.clientWidth;if(tw<=0)return;var left=(s.viewStart/s.total)*tw;var width=Math.max(16,((s.viewEnd-s.viewStart+1)/s.total)*tw);s.thumbEl.style.left=left+"px";s.thumbEl.style.width=width+"px";s.labelEl.textContent="#"+(s.viewStart+1)+"~#"+(s.viewEnd+1)+" ("+(s.viewEnd-s.viewStart+1)+"/"+s.total+")";}
 // ===== 图表缩放后同步滑块 =====
@@ -1661,16 +1685,6 @@ function onSliderPointerMove(e,key){e.preventDefault();var s=_chartSliders[key];
 function onSliderPointerUp(e,key){var s=_chartSliders[key];var doc=(window.parent||window).document;s.dragging=null;s.lastDragTime=Date.now();if(s._onMove)doc.removeEventListener("pointermove",s._onMove);if(s._onUp){doc.removeEventListener("pointerup",s._onUp);doc.removeEventListener("pointercancel",s._onUp);}s._onMove=null;s._onUp=null;}
 // ===== 在滑块轨道上点击 =====
 function onSliderTrackClick(e,key){var s=_chartSliders[key];if(s.dragging)return;if(Date.now()-(s.lastDragTime||0)<150)return;var tr=s.trackEl.getBoundingClientRect();var cX=e.clientX-tr.left;var cI=Math.round((cX/tr.width)*s.total);var vc=s.viewEnd-s.viewStart+1;var nVS=Math.round(cI-vc/2);nVS=Math.max(0,Math.min(s.total-vc,nVS));s.viewStart=nVS;s.viewEnd=nVS+vc-1;updateSliderVisual(key);syncChartFromSlider(key);}
-
-// ⚠️ 以下三个函数是旧版鼠标事件处理器的残留，目前未被调用，保留以兼容
-function onSliderMouseUp(key){var s=_chartSliders[key];var doc=(window.parent||window).document;s.dragging=null;s.lastDragTime=Date.now();if(s._mm)doc.removeEventListener("mousemove",s._mm);if(s._mu)doc.removeEventListener("mouseup",s._mu);s._mm=null;s._mu=null;}
-function onSliderTrackClick(e,key){var s=_chartSliders[key];if(s.dragging)return;if(Date.now()-s.lastDragTime<150)return;var tr=s.trackEl.getBoundingClientRect();var cX=e.clientX-tr.left;var cI=Math.round((cX/tr.width)*s.total);var vc=s.viewEnd-s.viewStart+1;var nVS=Math.round(cI-vc/2);nVS=Math.max(0,Math.min(s.total-vc,nVS));s.viewStart=nVS;s.viewEnd=nVS+vc-1;updateSliderVisual(key);syncChartFromSlider(key);}
-
-function onSliderMouseUp(key){var s=_chartSliders[key];var doc=window.parent||window;doc=doc.document;s.dragging=null;if(s._mm)doc.removeEventListener("mousemove",s._mm);if(s._mu)doc.removeEventListener("mouseup",s._mu);s._mm=null;s._mu=null;}
-function onSliderTrackClick(e,key){var s=_chartSliders[key];if(s.dragging)return;var tr=s.trackEl.getBoundingClientRect();var cX=e.clientX-tr.left;var cI=Math.round((cX/tr.width)*s.total);var vc=s.viewEnd-s.viewStart+1;var nVS=Math.round(cI-vc/2);nVS=Math.max(0,Math.min(s.total-vc,nVS));s.viewStart=nVS;s.viewEnd=nVS+vc-1;updateSliderVisual(key);syncChartFromSlider(key);}
-
-function onSliderMouseUp(){var s=_chartSlider;s.dragging=null;s.doc.removeEventListener("mousemove",onSliderMouseMove);s.doc.removeEventListener("mouseup",onSliderMouseUp);}
-function onSliderTrackClick(e){var s=_chartSlider;if(s.dragging)return;var tr=s.trackEl.getBoundingClientRect();var cX=e.clientX-tr.left;var cI=Math.round((cX/tr.width)*s.total);var vc=s.viewEnd-s.viewStart+1;var nVS=Math.round(cI-vc/2);nVS=Math.max(0,Math.min(s.total-vc,nVS));s.viewStart=nVS;s.viewEnd=nVS+vc-1;updateSliderVisual();syncChartsFromSlider();}
 
 
 // ===== 月份导航：将图表缩放到指定月份 =====
@@ -1737,7 +1751,7 @@ function renderHeatmap(filtered, dayAgg) {
     dayMap[dayAgg.keys[i]] = dayAgg.data[i].total_tokens;
   }
   var now = new Date();
-  var endStr = now.toISOString().slice(0, 10);
+  var endStr = _dsLocalDay(now.getTime());
   var endDate = new Date(endStr + 'T00:00:00Z');
   var startDate = new Date(endDate);
   startDate.setUTCFullYear(startDate.getUTCFullYear() - 2);
@@ -1903,29 +1917,11 @@ function renderCharts() {
   // ===== 工具：根据模式选取数据集 =====
   function pick(modeKey, roundArr, dayArr) { return _chartDayMode[modeKey] ? dayArr : roundArr; }
   function srcData(modeKey) { return _chartDayMode[modeKey] ? dD : filtered; }
-  // ===== 图表 tooltip 辅助：展示数据点所属模型及其当前设置的价格 =====
-  function modelPriceText(m) {
-    if (!hasPriceForModel(m)) return '价格未设置';
-    var pr = getPricing(m); var off = pr.offpeak;
-    var txt = '命中¥' + off.hit + ' 未命中¥' + off.miss + ' 输出¥' + off.output + '/M';
-    if (pr.usePeakPricing !== false && pr.peak) {
-      var pk = pr.peak;
-      txt += '；高峰 命中¥' + pk.hit + ' 未命中¥' + pk.miss + ' 输出¥' + pk.output + '/M';
-    }
-    return txt;
-  }
+  // ===== 图表 tooltip 辅助：展示数据点所属模型 =====
   function chartTooltipLines(d) {
     var ms = d && d.models && d.models.length ? d.models : (d && d.model ? [d.model] : []);
     if (!ms.length) return [];
-    var lines = ['模型: ' + ms.join(', ')];
-    if (ms.length === 1) {
-      lines.push('模型价格: ' + modelPriceText(ms[0]));
-    } else {
-      var hasP = ms.some(function(m){ return hasPriceForModel(m); });
-      var allP = ms.every(function(m){ return hasPriceForModel(m); });
-      lines.push(allP ? '模型价格: 多模型' : hasP ? '模型价格: 部分模型未设置价格' : '模型价格: 价格未设置');
-    }
-    return lines;
+    return ['模型: ' + ms.join(', ')];
   }
   // ===== 热力图 =====
   renderHeatmap(filtered, dayAgg);
@@ -2154,23 +2150,20 @@ function renderCharts() {
   // ===== 面板切换与 UI 刷新 =====
   var _historyPage = 0;                             // 历史记录当前页码
 var _ds_last_toggle = 0;                          // 防抖时间戳
-  function togglePanel() { console.log('[DS] togglePanel called, state.panelOpen=' + state.panelOpen);
+  function togglePanel() { 
     if (!isInitDone) return;
     if (Date.now() - _ds_last_toggle < 300) return;
     _ds_last_toggle = Date.now();
     var p = window.parent || window;
     var ov = p.document.getElementById('ds-overlay');
     var pn = p.document.getElementById('ds-panel');
-    console.log('[DS] ov=' + !!ov + ' pn=' + !!pn + ' ov.opacity=' + (ov ? ov.style.opacity : 'N/A'));
-    if (!ov || !pn) { console.log('[DS] recreateUI'); createUI(); return; }
+    if (!ov || !pn) { createUI(); return; }
     if (state.panelOpen) { 
-      console.log('[DS] closing');
       ov.style.opacity = '0';
       ov.style.pointerEvents = 'none';
       pn.classList.remove('ds-open');
       state.panelOpen = false; 
     } else { 
-      console.log('[DS] opening');
       ov.style.pointerEvents = 'auto';
       ov.style.opacity = '1';
       pn.classList.add('ds-open');
@@ -2178,7 +2171,7 @@ var _ds_last_toggle = 0;                          // 防抖时间戳
       requestAnimationFrame(function(){ syncViewportHeight(); refreshUI(); }); 
     }
   // ===== 刷新主面板 UI 数据（重新计算并填充 DOM） =====
-  }function refreshUI() { var p = window.parent || window; var doc = p.document; var el = function(id) { return doc.getElementById(id); }; refreshSaveSelect(); refreshOverviewModelSelect(); var s = getSelectedSave(); if (!s) return; var ltc=0,lic=0,loc=0,lr=0; (s.history||[]).forEach(function(h){var u={timestamp:h.timestamp,model:h.model,prompt_cache_hit_tokens:h.cache_hit_tokens||0,prompt_cache_miss_tokens:h.cache_miss_tokens||0,completion_tokens:h.completion_tokens||0};var c=calcCost(u);h.cost=c.total;h.input_cost=c.input;h.output_cost=c.output;h.priceType=c.priceType;ltc+=c.total;lic+=c.input;loc+=c.output;if(isDeepSeekOfficialModel(h.model)){lr++}}); s.total_cost=ltc;s.input_cost=lic;s.output_cost=loc;s.rounds=lr; var om=state.overviewModel||'__all__'; var ovH=(s.history||[]).filter(function(h){return om==='__all__'||h.model===om;}); var ov={total_tokens:0,total_cost:0,input_tokens:0,output_tokens:0,cache_hit_tokens:0,cache_miss_tokens:0,input_cost:0,output_cost:0,rounds:0}; ovH.forEach(function(h){ov.total_tokens+=h.total_tokens||0;ov.total_cost+=h.cost||0;ov.input_tokens+=h.prompt_tokens||0;ov.output_tokens+=h.completion_tokens||0;ov.cache_hit_tokens+=h.cache_hit_tokens||0;ov.cache_miss_tokens+=h.cache_miss_tokens||0;ov.input_cost+=h.input_cost||0;ov.output_cost+=h.output_cost||0;if(isDeepSeekOfficialModel(h.model)){ov.rounds++}}); if (el('ds-save-time')) el('ds-save-time').textContent = state.currentSave === '__all__' ? '' : '开始于 ' + formatStartTime(s.startTime); if (el('ds-total-tokens')) el('ds-total-tokens').textContent = (ov.total_tokens || 0).toLocaleString(); if (el('ds-total-cost')) el('ds-total-cost').textContent = '\u00A5' + (ov.total_cost || 0).toFixed(4); if (el('ds-history-count')) el('ds-history-count').textContent = '当前' + (ovH.length || 0) + '条'; if (el('ds-total-cache-hit')) el('ds-total-cache-hit').textContent = (ov.cache_hit_tokens || 0).toLocaleString(); if (el('ds-total-cache-miss')) el('ds-total-cache-miss').textContent = (ov.cache_miss_tokens || 0).toLocaleString(); if (el('ds-total-output')) el('ds-total-output').textContent = (ov.output_tokens || 0).toLocaleString(); if (el('ds-rounds')) el('ds-rounds').textContent = '基于 ' + (ov.rounds || 0) + ' 轮'; var tp = 0, th = 0; ovH.forEach(function(i) { tp += i.prompt_tokens || 0; th += i.cache_hit_tokens || 0; }); if (el('ds-weighted-rate')) el('ds-weighted-rate').textContent = (tp > 0 ? (th / tp * 100) : 0).toFixed(1) + '%'; if ((ov.rounds || 0) > 0) { if (el('ds-avg-tokens')) el('ds-avg-tokens').textContent = Math.round((ov.total_tokens || 0) / ov.rounds) + ' tokens'; var _durSum=0,_durCnt=0,_trSum=0,_trCnt=0;ovH.forEach(function(h){if(h.duration){_durSum+=h.duration;_durCnt++}if(h.tokenRate){_trSum+=h.tokenRate;_trCnt++}});if(el('ds-avg-duration'))el('ds-avg-duration').textContent=_durCnt>0?(_durSum/_durCnt/1000).toFixed(1)+'s':'--';if(el('ds-avg-tokenrate'))el('ds-avg-tokenrate').textContent=_trCnt>0?Math.round(_trSum/_trCnt)+' t/s':'--';if(el('ds-dur-dot')){if(_durCnt>0){var _ds=_durSum/_durCnt/1000;el('ds-dur-dot').style.background=_ds<30?'#34d399':_ds<60?'#fbbf24':'#f87171'}else{el('ds-dur-dot').style.background='#6b7280'}}if(el('ds-rate-dot')){if(_trCnt>0){var _tr=_trSum/_trCnt;el('ds-rate-dot').style.background=_tr>50?'#34d399':_tr>20?'#fbbf24':'#f87171'}else{el('ds-rate-dot').style.background='#6b7280'}}if(el('ds-cost-dot')){var _ac=parseFloat(el('ds-avg-cost').textContent.replace('¥',''))||0;el('ds-cost-dot').style.background=_ac<0.005?'#34d399':_ac<0.02?'#fbbf24':'#f87171'}if(el('ds-tokens-dot')){var _at=parseInt(el('ds-avg-tokens').textContent.replace(/[^0-9]/g,''))||0;el('ds-tokens-dot').style.background=_at<1000?'#34d399':_at<3000?'#fbbf24':'#f87171'}if (el('ds-avg-cost')) el('ds-avg-cost').textContent = '\u00A5' + ((ov.total_cost || 0) / ov.rounds).toFixed(4); } var sv = (ov.cache_hit_tokens || 0) * 0.98 / 1e6; if (el('ds-savings')) el('ds-savings').textContent = '\u00A5' + sv.toFixed(4); if (el('ds-savings-tokens')) el('ds-savings-tokens').textContent = (ov.cache_hit_tokens || 0).toLocaleString(); if (el('ds-input-cost')) el('ds-input-cost').textContent = '\u00A5' + (ov.input_cost || 0).toFixed(4); if (el('ds-input-tokens')) el('ds-input-tokens').textContent = (ov.input_tokens || 0).toLocaleString(); if (el('ds-output-cost')) el('ds-output-cost').textContent = '\u00A5' + (ov.output_cost || 0).toFixed(4); if (el('ds-output-tokens')) el('ds-output-tokens').textContent = (ov.output_tokens || 0).toLocaleString(); var be = el('ds-balance'); if (be) { var balText = '\u00A5'; if (state.customBalance !== null && state.customBalance !== '') { balText += parseFloat(state.customBalance).toFixed(2) + ' CNY'; } else if (state.balance && state.balance.balance) { balText += parseFloat(state.balance.balance).toFixed(2) + ' ' + state.balance.currency; } else { balText += '0.00 CNY'; } be.textContent = balText; } var rem = el('ds-balance-remaining'); if (rem) { var r = calculateRemainingRounds({ rounds: ov.rounds, total_cost: ov.total_cost, history: ovH }); rem.textContent = r !== null ? '预计还可进行 ' + r + ' 轮对话' : ''; } var PAGE_SIZE = 20; var totalPages = Math.ceil((ovH.length || 0) / PAGE_SIZE); if (_historyPage >= totalPages) _historyPage = Math.max(0, totalPages - 1); if (_historyPage < 0) _historyPage = 0; var startIdx = _historyPage * PAGE_SIZE; var pageItems = ovH.slice(startIdx, startIdx + PAGE_SIZE); if (ovH && ovH.length > 0 && el('ds-history')) { el('ds-history').innerHTML = pageItems.map(function(i, idx) {
+  }function refreshUI() { var p = window.parent || window; var doc = p.document; var el = function(id) { return doc.getElementById(id); }; refreshSaveSelect(); refreshOverviewModelSelect(); var s = getSelectedSave(); if (!s) return; (s.history||[]).forEach(function(h){var u={timestamp:h.timestamp,model:h.model,prompt_cache_hit_tokens:h.cache_hit_tokens||0,prompt_cache_miss_tokens:h.cache_miss_tokens||0,completion_tokens:h.completion_tokens||0};var c=calcCost(u);h.cost=c.total;h.input_cost=c.input;h.output_cost=c.output;h.priceType=c.priceType;}); var om=state.overviewModel||'__all__'; var ovH=(s.history||[]).filter(function(h){return om==='__all__'||h.model===om;}); var ov={total_tokens:0,total_cost:0,input_tokens:0,output_tokens:0,cache_hit_tokens:0,cache_miss_tokens:0,input_cost:0,output_cost:0,rounds:0}; ovH.forEach(function(h){ov.total_tokens+=h.total_tokens||0;ov.total_cost+=h.cost||0;ov.input_tokens+=h.prompt_tokens||0;ov.output_tokens+=h.completion_tokens||0;ov.cache_hit_tokens+=h.cache_hit_tokens||0;ov.cache_miss_tokens+=h.cache_miss_tokens||0;ov.input_cost+=h.input_cost||0;ov.output_cost+=h.output_cost||0;if(isDeepSeekOfficialModel(h.model)){ov.rounds++}}); if(om==='__all__'){ov.total_tokens=s.total_tokens||0;ov.total_cost=s.total_cost||0;ov.input_tokens=s.input_tokens||0;ov.output_tokens=s.output_tokens||0;ov.cache_hit_tokens=s.cache_hit_tokens||0;ov.cache_miss_tokens=s.cache_miss_tokens||0;ov.input_cost=s.input_cost||0;ov.output_cost=s.output_cost||0;ov.rounds=s.rounds||0;} if (el('ds-save-time')) el('ds-save-time').textContent = state.currentSave === '__all__' ? '' : '开始于 ' + formatStartTime(s.startTime); if (el('ds-total-tokens')) el('ds-total-tokens').textContent = (ov.total_tokens || 0).toLocaleString(); if (el('ds-total-cost')) el('ds-total-cost').textContent = '\u00A5' + (ov.total_cost || 0).toFixed(4); if (el('ds-history-count')) el('ds-history-count').textContent = '当前' + (ovH.length || 0) + '条'; if (el('ds-total-cache-hit')) el('ds-total-cache-hit').textContent = (ov.cache_hit_tokens || 0).toLocaleString(); if (el('ds-total-cache-miss')) el('ds-total-cache-miss').textContent = (ov.cache_miss_tokens || 0).toLocaleString(); if (el('ds-total-output')) el('ds-total-output').textContent = (ov.output_tokens || 0).toLocaleString(); if (el('ds-rounds')) el('ds-rounds').textContent = '基于 ' + (ov.rounds || 0) + ' 轮'; var tp = 0, th = 0; ovH.forEach(function(i) { tp += i.prompt_tokens || 0; th += i.cache_hit_tokens || 0; }); if (el('ds-weighted-rate')) el('ds-weighted-rate').textContent = (tp > 0 ? (th / tp * 100) : 0).toFixed(1) + '%'; if ((ov.rounds || 0) > 0) { if (el('ds-avg-tokens')) el('ds-avg-tokens').textContent = Math.round((ov.total_tokens || 0) / ov.rounds) + ' tokens'; var _durSum=0,_durCnt=0,_trSum=0,_trCnt=0;ovH.forEach(function(h){if(h.duration){_durSum+=h.duration;_durCnt++}if(h.tokenRate){_trSum+=h.tokenRate;_trCnt++}});if(el('ds-avg-duration'))el('ds-avg-duration').textContent=_durCnt>0?(_durSum/_durCnt/1000).toFixed(1)+'s':'--';if(el('ds-avg-tokenrate'))el('ds-avg-tokenrate').textContent=_trCnt>0?Math.round(_trSum/_trCnt)+' t/s':'--';if(el('ds-dur-dot')){if(_durCnt>0){var _ds=_durSum/_durCnt/1000;el('ds-dur-dot').style.background=_ds<30?'#34d399':_ds<60?'#fbbf24':'#f87171'}else{el('ds-dur-dot').style.background='#6b7280'}}if(el('ds-rate-dot')){if(_trCnt>0){var _tr=_trSum/_trCnt;el('ds-rate-dot').style.background=_tr>50?'#34d399':_tr>20?'#fbbf24':'#f87171'}else{el('ds-rate-dot').style.background='#6b7280'}}if(el('ds-cost-dot')){var _ac=parseFloat(el('ds-avg-cost').textContent.replace('¥',''))||0;el('ds-cost-dot').style.background=_ac<0.005?'#34d399':_ac<0.02?'#fbbf24':'#f87171'}if(el('ds-tokens-dot')){var _at=parseInt(el('ds-avg-tokens').textContent.replace(/[^0-9]/g,''))||0;el('ds-tokens-dot').style.background=_at<1000?'#34d399':_at<3000?'#fbbf24':'#f87171'}if (el('ds-avg-cost')) el('ds-avg-cost').textContent = '\u00A5' + ((ov.total_cost || 0) / ov.rounds).toFixed(4); } var sv = 0; ovH.forEach(function(h){ sv += calcSavings({ timestamp: h.timestamp, model: h.model, prompt_cache_hit_tokens: h.cache_hit_tokens || 0 }); }); if (el('ds-savings')) el('ds-savings').textContent = '\u00A5' + sv.toFixed(4); if (el('ds-savings-tokens')) el('ds-savings-tokens').textContent = (ov.cache_hit_tokens || 0).toLocaleString(); if (el('ds-input-cost')) el('ds-input-cost').textContent = '\u00A5' + (ov.input_cost || 0).toFixed(4); if (el('ds-input-tokens')) el('ds-input-tokens').textContent = (ov.input_tokens || 0).toLocaleString(); if (el('ds-output-cost')) el('ds-output-cost').textContent = '\u00A5' + (ov.output_cost || 0).toFixed(4); if (el('ds-output-tokens')) el('ds-output-tokens').textContent = (ov.output_tokens || 0).toLocaleString(); var be = el('ds-balance'); if (be) { var balText = '\u00A5'; if (state.customBalance !== null && state.customBalance !== '') { balText += parseFloat(state.customBalance).toFixed(2) + ' CNY'; } else if (state.balance && state.balance.balance) { balText += parseFloat(state.balance.balance).toFixed(2) + ' ' + state.balance.currency; } else { balText += '0.00 CNY'; } be.textContent = balText; } var rem = el('ds-balance-remaining'); if (rem) { var r = calculateRemainingRounds({ rounds: ov.rounds, total_cost: ov.total_cost, history: ovH }); rem.textContent = r !== null ? '预计还可进行 ' + r + ' 轮对话' : ''; } var PAGE_SIZE = 20; var totalPages = Math.ceil((ovH.length || 0) / PAGE_SIZE); if (_historyPage >= totalPages) _historyPage = Math.max(0, totalPages - 1); if (_historyPage < 0) _historyPage = 0; var startIdx = _historyPage * PAGE_SIZE; var pageItems = ovH.slice(startIdx, startIdx + PAGE_SIZE); if (ovH && ovH.length > 0 && el('ds-history')) { el('ds-history').innerHTML = pageItems.map(function(i, idx) {
               var t = new Date(i.timestamp).toLocaleString('zh-CN', {month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); var _ds_hp = i.total_tokens > 0 ? (i.cache_hit_tokens / i.total_tokens * 100) : 0; var _ds_mp = i.total_tokens > 0 ? (i.cache_miss_tokens / i.total_tokens * 100) : 0; var _ds_hps = _ds_hp.toFixed(1); var _ds_mps = _ds_mp.toFixed(1); var _ds_ops = i.total_tokens > 0 ? (100 - parseFloat(_ds_hps) - parseFloat(_ds_mps)).toFixed(1) : '0.0';
               
               return '<div class="ds-history-item" style="padding:10px 12px;font-family:\'Microsoft YaHei\',\'微软雅黑\',sans-serif"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:4px"><div style="display:flex;align-items:center;gap:6px;min-width:0"><span style="font-size:11px;color:#6b7280;font-weight:500;white-space:nowrap">#' + (ovH.length - 1 - (startIdx + idx)) + ' · ' + t + '</span><span class="ds-model-badge" style="font-size:10px;padding:2px 6px;border-radius:4px;background:#312e81;color:#a5b4fc;font-weight:500;white-space:nowrap\">' + (isDeepSeekOfficialModel(i.model) ? i.model : shortModelV2(i.model)) + '</span>' + (isDeepSeekOfficialModel(i.model) ? (i.priceType === 'new-peak' ? '<span style="font-size:9px;padding:1px 4px;border-radius:3px;background:#f59e0b;color:#1c1917;font-weight:500">高峰</span>' : i.priceType === 'new-offpeak' ? '<span style="font-size:9px;padding:1px 4px;border-radius:3px;background:#374151;color:#9ca3af;font-weight:500">非高峰</span>' : '') : '') + '</div><div style="display:flex;align-items:center;gap:4px;flex-shrink:0"><button class="ds-btn-usage" data-ts="' + i.timestamp + '" style="padding:3px 6px;border:1px solid #374151;border-radius:4px;background:transparent;color:#9ca3af;font-size:10px;cursor:pointer;font-family:inherit" title="查看完整使用数据">📄</button><button class="ds-btn-compare ds-btn-compare-old" data-ts="' + i.timestamp + '" style="padding:3px 6px;border:1px solid #374151;border-radius:4px;background:transparent;color:#6366f1;font-size:10px;cursor:pointer;font-family:inherit">旧</button><button class="ds-btn-compare ds-btn-compare-new" data-ts="' + i.timestamp + '" style="padding:3px 6px;border:1px solid #374151;border-radius:4px;background:transparent;color:#a78bfa;font-size:10px;cursor:pointer;font-family:inherit">新</button></div></div><div style="background:#060a10;border-radius:6px;height:8px;overflow:hidden;margin-bottom:6px;display:flex"><div style="background:#34d399;width:' + _ds_hp + '%;height:100%;transition:width 0.3s"></div><div style="background:#fca5a5;width:' + _ds_mp + '%;height:100%;transition:width 0.3s"></div><div style="background:#a5b4fc;width:' + (i.total_tokens > 0 ? (100 - _ds_hp - _ds_mp) : 0) + '%;height:100%;transition:width 0.3s"></div></div><div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;margin-bottom:6px"><div style="display:flex;gap:6px"><span style="color:#34d399;font-weight:500">' + _ds_hps + '%命中</span><span style="color:#fca5a5;font-weight:500">' + _ds_mps + '%未命中</span><span style="color:#a5b4fc;font-weight:500">' + _ds_ops + '%输出</span></div><span style="color:#e5e7eb;font-weight:600">' + i.total_tokens.toLocaleString() + 't</span></div><div style="display:flex;justify-content:space-between;align-items:center;font-size:10px"><div style="display:flex;flex-wrap:wrap;gap:8px;color:#6b7280"><span>⏱' + (i.duration ? (i.duration / 1000).toFixed(1) + 's' : '--') + '</span><span>⚡' + (i.tokenRate ? i.tokenRate + 't/s' : '--') + '</span><span style="color:#34d399;font-weight:600">↑' + (i.prompt_tokens ? (i.prompt_tokens / 1000).toFixed(1) + 'k' : '--') + '</span><span style="color:#a5b4fc;font-weight:600">↓' + (i.completion_tokens ? (i.completion_tokens / 1000).toFixed(1) + 'k' : '--') + '</span></div><span style="color:#fbbf24;font-weight:700">' + fmtCost(i.model, i.cost, 4) + '</span></div></div>'; }).join('') + (totalPages > 1 ? '<div style="display:flex;justify-content:center;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid #374151"><button id="ds-page-prev" style="padding:5px 10px;border:1px solid #374151;border-radius:4px;background:' + (_historyPage > 0 ? '#0e1520;color:#e5e7eb' : 'transparent;color:#4b5563') + ';font-size:11px;cursor:' + (_historyPage > 0 ? 'pointer' : 'default') + ';font-family:\'Microsoft YaHei\',\'微软雅黑\',sans-serif">◀ 上一页</button><span style="font-size:12px;color:#9ca3af;font-weight:500">第 ' + (_historyPage + 1) + '/' + totalPages + ' 页</span><button id="ds-page-next" style="padding:5px 10px;border:1px solid #374151;border-radius:4px;background:' + (_historyPage < totalPages - 1 ? '#0e1520;color:#e5e7eb' : 'transparent;color:#4b5563') + ';font-size:11px;cursor:' + (_historyPage < totalPages - 1 ? 'pointer' : 'default') + ';font-family:\'Microsoft YaHei\',\'微软雅黑\',sans-serif">下一页 ▶</button></div>' : ''); if (totalPages > 1) { (function() { var p = window.parent || window; var d = p.document; var prv = d.getElementById('ds-page-prev'); var nxt = d.getElementById('ds-page-next'); if (prv) prv.onclick = function() { if (_historyPage > 0) { _historyPage--; refreshUI(); } }; if (nxt) nxt.onclick = function() { if (_historyPage < totalPages - 1) { _historyPage++; refreshUI(); } }; })(); } } else if (el('ds-history')) { el('ds-history').innerHTML = '<div style="text-align:center;padding:16px;color:#6b7280;font-weight:500;font-size:13px">暂无历史记录</div>'; } }
