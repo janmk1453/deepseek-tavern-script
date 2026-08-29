@@ -149,7 +149,7 @@ function init() {
     initTimestamp = Date.now();
     isInitDone = true;
     syncViewportHeight();
-    setInterval(function() { updatePeakDot(); }, 30000);
+    if (window._dsPeakDotTimer) { try { clearInterval(window._dsPeakDotTimer); } catch(e) {} } window._dsPeakDotTimer = setInterval(function() { updatePeakDot(); }, 30000);
     try {
       var p = window.parent || window;
       if (p.visualViewport) {
@@ -1317,7 +1317,7 @@ doc.getElementById('ds-save-select').onchange = function(e) { state.currentSave 
   }
 
   // ===== 刷新存档下拉选择器 =====
-  function refreshSaveSelect() { var p = window.parent || window; var doc = p.document; var select = doc.getElementById('ds-save-select'); if (!select) return; var html = '<option value="__all__"' + (state.currentSave === '__all__' ? ' selected' : '') + '>全部存档 (合并统计)</option>'; Object.keys(state.saves).sort(function(a, b) { return (state.saves[b].startTime || 0) - (state.saves[a].startTime || 0); }).forEach(function(k) { var s = state.saves[k]; html += '<option value="' + _ds_esc(k) + '"' + (k === state.currentSave ? ' selected' : '') + '>' + _ds_esc(s.name) + ' (' + (s.rounds || 0) + '轮)</option>'; }); select.innerHTML = html; }
+  function refreshSaveSelect() { var p = window.parent || window; var doc = p.document; var select = doc.getElementById('ds-save-select'); if (!select) return; var html = '<option value="__all__"' + (state.currentSave === '__all__' ? ' selected' : '') + '>全部存档 (合并统计)</option>'; Object.keys(state.saves).sort(function(a, b) { return (state.saves[b].startTime || 0) - (state.saves[a].startTime || 0); }).forEach(function(k) { var s = state.saves[k]; html += '<option value="' + _ds_esc(k) + '"' + (k === state.currentSave ? ' selected' : '') + '>' + _ds_esc(s.name) + ' (' + (s.history ? s.history.length : 0) + '条)</option>'; }); select.innerHTML = html; }
 
 // ===== 加载 Chart.js 图表库（多 CDN 后备） =====
 function loadChartLib(callback) {
@@ -1713,7 +1713,7 @@ function initChartSliders(){var p=window.parent||window;var doc=p.document;["tok
 // ===== 更新滑块视觉位置 =====
 function updateSliderVisual(key){var s=_chartSliders[key];if(!s||!s.trackEl||!s.thumbEl||!s.labelEl||s.total<=0)return;var tw=s.trackEl.clientWidth;if(tw<=0)return;var left=(s.viewStart/s.total)*tw;var width=Math.max(16,((s.viewEnd-s.viewStart+1)/s.total)*tw);s.thumbEl.style.left=left+"px";s.thumbEl.style.width=width+"px";s.labelEl.textContent="#"+(s.viewStart+1)+"~#"+(s.viewEnd+1)+" ("+(s.viewEnd-s.viewStart+1)+"/"+s.total+")";}
 // ===== 图表缩放后同步滑块 =====
-function syncSliderFromChart(chart){var key=null;if(chart===_chartInstances.token)key="token";else if(chart===_chartInstances.cost)key="cost";else if(chart===_chartInstances.rate)key="rate";else if(chart===_chartInstances.requests)key="requests";if(!key)return;var s=_chartSliders[key];var total=chart.data.labels.length;var min=chart.scales.x.options.min!==undefined?chart.scales.x.options.min:0;var max=chart.scales.x.options.max!==undefined?chart.scales.x.options.max:total-1;s.total=total;s.viewStart=Math.max(0,Math.round(min));s.viewEnd=Math.min(total-1,Math.round(max));updateSliderVisual(key);}
+function syncSliderFromChart(chart){var key=null;if(chart===_chartInstances.token)key="token";else if(chart===_chartInstances.cost)key="cost";else if(chart===_chartInstances.rate)key="rate";else if(chart===_chartInstances.requests)key="requests";else if(chart===_chartInstances.duration)key="duration";if(!key)return;var s=_chartSliders[key];var total=chart.data.labels.length;var min=chart.scales.x.options.min!==undefined?chart.scales.x.options.min:0;var max=chart.scales.x.options.max!==undefined?chart.scales.x.options.max:total-1;s.total=total;s.viewStart=Math.max(0,Math.round(min));s.viewEnd=Math.min(total-1,Math.round(max));updateSliderVisual(key);}
 // ===== 滑块拖动后同步图表 =====
 function syncChartFromSlider(key){var s=_chartSliders[key];var chart=_chartInstances[key];if(!chart)return;chart.options.scales.x.min=s.viewStart;chart.options.scales.x.max=s.viewEnd;chart.update("none");}
 // ===== 滑块指针按下（开始拖动或调整范围） =====
@@ -2463,6 +2463,6 @@ window.DeepSeekStats = { state: state, togglePanel: togglePanel, refreshUI: refr
 (window.parent || window).showUsageDetail = showUsageDetail;
 (window.parent || window).closeUsageDetail = closeUsageDetail;
   // 延迟 2 秒初始化，确保酒馆和酒馆助手接口已就绪
-  setTimeout(init, 2000);
+  if (window._dsInitTimer) { try { clearTimeout(window._dsInitTimer); } catch(e) {} } window._dsInitTimer = setTimeout(init, 2000);
 })();
 
