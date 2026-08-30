@@ -5,11 +5,11 @@
 ## 预览
 
 <p align="center">
-  <img src="演示/屏幕截图%202026-06-27%20221118.png" width="18%">
-  <img src="演示/屏幕截图%202026-06-27%20221246.png" width="18%">
-  <img src="演示/屏幕截图%202026-06-27%20221255.png" width="18%">
-  <img src="演示/屏幕截图%202026-06-27%20221307.png" width="18%">
-  <img src="演示/屏幕截图%202026-06-27%20221346.png" width="18%">
+  <img src="演示/screenshot-1788064742673.png" width="18%">
+  <img src="演示/screenshot-1788064716801.png" width="18%">
+  <img src="演示/screenshot-1788064691734.png" width="18%">
+  <img src="演示/screenshot-1788064657102.png" width="18%">
+  <img src="演示/screenshot-1788064626537.png" width="18%">
 </p>
 
 ## 功能
