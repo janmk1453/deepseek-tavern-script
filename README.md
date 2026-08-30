@@ -108,6 +108,53 @@
 - 导入后自动根据历史记录重算所有统计汇总，确保完整正确还原
 - 导出文件带格式版本号：旧版本导出的文件可被未来脚本正常导入（向后兼容）；格式结构升级时会保留迁移支持；若文件版本高于脚本支持范围会提示升级脚本
 
+### WebDAV 云同步（多端同步 / 云备份）
+
+- 在「设置」面板底部「WebDAV 云同步」区域填写服务器地址、用户名、应用密码与（可选）远程子路径，点击「☁️ 立即同步」即可与 WebDAV 服务器（如坚果云）双向合并
+- **双向合并、绝不单向覆盖**：先拉取云端、与本地按时间戳合并、再把合并结果上传。因此上传不会用本地旧数据覆盖云端新数据，下载也不会覆盖本地已更新的数据
+  - 存档按存档名并集、历史记录按时间戳去重合并（同一时间戳保留本地更完整的记录），天然无重复、无遗漏
+  - 余额、设置等元数据按最后修改时间晚者胜（平局保留本地），多端各改不同项时以各自最新为准
+- **严格白名单、不上传敏感数据**：同步包仅含统计数据、设置、余额与消息计数，**不含聊天内容/提示词，也不含 API 密钥**（密码独立加密存储于本地，绝不进同步包与日志）
+- **安全约束**：服务器地址强制使用 https，明文 http 将被拒绝以保护凭据；远程文件固定名为 `DeepSeekStatSync.json`
+- 首次同步时若云端无文件则直接上传；云端文件损坏或格式不符时仅报错、**不覆盖云端**
+
+#### 关于浏览器跨域（CORS）与 CORS 代理（重要）
+
+浏览器出于安全限制，向**不返回 CORS 头**的跨域地址发起带 `Authorization` 的请求会被直接拦截。实测坚果云 WebDAV 的预检（OPTIONS）返回 `401` 且不含 `Access-Control-Allow-Origin`，因此**网页内直接同步坚果云必然失败**（提示「浏览器跨域(CORS)被拦截」）。
+
+解决方式（任选其一，代理地址填到「CORS 代理」框）：
+1. **SillyTavern 内置 CORS 代理（最推荐）**：改酒馆安装目录 `config.yaml` 的 `enableCorsProxy: true` 并重启酒馆。该代理与酒馆页面同源，浏览器不发跨域预检、凭据也只在本机后端与坚果云之间传输，最安全。代理框填写与你打开酒馆**相同的 host:port**，例如 `http://127.0.0.1:8000/proxy?url=`（端口见 config.yaml 的 `port`，默认 8000；URL 必须带 `?url=`）。
+2. **自建 Cloudflare Worker 等代理**：脚本会把真实请求 URL 作为路径参数（`代理地址/ + encodeURIComponent(真实URL)`，代理根路径以 `/` 结尾）发往代理，由代理在服务端转发并返回 CORS 头。**切勿使用陌生公共代理，会泄露 WebDAV 账号密码**。
+
+**最简 Cloudflare Worker 代理示例**（免费、部署即用，记得在 Worker 设置中允许 CORS）：
+
+```js
+export default {
+  async fetch(request) {
+    const url = new URL(request.url);
+    const target = url.pathname.slice(1); // 去掉前导 /
+    if (!target) return new Response('missing target', { status: 400 });
+    const realUrl = decodeURIComponent(target);
+    const init = {
+      method: request.method,
+      headers: request.headers,
+      body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
+      redirect: 'follow'
+    };
+    const resp = await fetch(realUrl, init);
+    const newHeaders = new Headers(resp.headers);
+    newHeaders.set('Access-Control-Allow-Origin', '*');
+    newHeaders.set('Access-Control-Allow-Methods', 'GET, PUT, MKCOL, OPTIONS, DELETE');
+    newHeaders.set('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    return new Response(resp.body, { status: resp.status, headers: newHeaders });
+  }
+}
+```
+
+> 使用 ST 内置代理时「CORS 代理」框填 `http://<打开酒馆的host:port>/proxy?url=`（含 `?url=`）；使用 Worker 时代理地址建议为根路径并以 `/` 结尾（如 `https://你的域名/`），上面的 Worker 约定真实 URL 位于路径开头，若代理部署在子路径请相应调整 Worker 对 `pathname` 的解析。
+```
+
+
 ### 设置选项
 
 - **自动校准余额**：设置自动查询余额的间隔
@@ -132,6 +179,11 @@
 - 面对数百条记录可能存在性能问题
 
 ## 更新日志
+
+### 2.36
+- 新增：WebDAV 云同步（设置页「WebDAV 云同步」区域），支持与坚果云等 WebDAV 服务器进行双向合并同步，实现多端同步与云备份
+- 新增：同步采用 pull-merge-push 双向合并，按时间戳去重合并历史记录，元数据按最后修改时间晚者胜，确保不覆盖、不遗漏、不重复
+- 新增：同步包严格白名单，仅同步统计/设置/余额，不含聊天内容与 API 密钥；密码独立加密存储；强制 https
 
 ### 2.35
 - 修复：提交记录每轮费用、支出明细费用、历史记录每次请求费用在实时统计时始终为 0 的问题（根因为 processUsage 中将 lu.cost 误写为数字导致下游 .total/.input/.output 取值为 undefined，刷新网页后由 recalcAllCosts 重算才恢复正常）

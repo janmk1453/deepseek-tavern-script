@@ -11,7 +11,7 @@
   var DETAIL_KEEP = 10; // 仅保留最近 N 次对话的完整数据（聊天内容/提示词/完整请求响应），更早的只保留 token、费用、耗时等必要参数
   // ===== 全局状态对象 =====
   // 涵盖当前存档、UI 开关、图表库加载状态、API 密钥、余额、设置和消息计数
-  var state = { currentSave: null, saves: {}, lastUsage: null, panelOpen: false, chartPanelOpen: false, chartLibLoaded: false, chartModel: '__all__', overviewModel: '__all__', compareBefore: null, compareAfter: null, apiKey: '', balance: null, customBalance: null, settings: { autoBalance: false, balanceInterval: 10, debug: false, debugHit: 10000, debugMiss: 5000, debugOutput: 2000, debugModel: 'deepseek-v4-flash', debugDateStart: '', debugDateEnd: '', debugBatchCount: 30, useNewPricing: true, newPricingDate: new Date('2026-08-17T00:00:00+08:00').getTime(), customModels: [], peakHours: [{ start: '09:00', end: '12:00' }, { start: '14:00', end: '18:00' }], peakDot: true }, messageCount: 0 };
+  var state = { currentSave: null, saves: {}, lastUsage: null, panelOpen: false, chartPanelOpen: false, chartLibLoaded: false, chartModel: '__all__', overviewModel: '__all__', compareBefore: null, compareAfter: null, apiKey: '', balance: null, customBalance: null, settings: { autoBalance: false, balanceInterval: 10, debug: false, debugHit: 10000, debugMiss: 5000, debugOutput: 2000, debugModel: 'deepseek-v4-flash', debugDateStart: '', debugDateEnd: '', debugBatchCount: 30, useNewPricing: true, newPricingDate: new Date('2026-08-17T00:00:00+08:00').getTime(), customModels: [], peakHours: [{ start: '09:00', end: '12:00' }, { start: '14:00', end: '18:00' }], peakDot: true, webdav: { url: 'https://dav.jianguoyun.com/dav/', username: '', path: '', proxy: '' } }, messageCount: 0 };
   // ===== 判断是否为周末（北京时区：周六 / 周日） =====
   // 周末全天按低谷价计费，不区分峰谷时段。与 _dsLocalDay 同法：时间戳 +8h 后取 UTC 星期
   function isWeekendDay(timestamp) { var t = typeof timestamp === 'number' ? timestamp : (timestamp && timestamp.getTime ? timestamp.getTime() : 0); var day = new Date(t + 8 * 3600 * 1000).getUTCDay(); return day === 6 || day === 0; }
@@ -58,6 +58,16 @@
   var CUSTOM_BALANCE_STORAGE = 'ds_custom_balance';             // 自定义余额
   var LAST_VERSION_STORAGE = 'ds_last_version';                  // 上次运行的脚本版本号（用于版本迁移）
   var EXPORT_FORMAT_VERSION = 1;                                 // 导入导出文件格式版本（结构性变更时 +1，并提供迁移）
+  var WEBDAV_SYNC_FILE = 'DeepSeekStatSync.json';                // WebDAV 远程固定文件名
+  var WEBDAV_REMOTE_VERSION = 1;                                 // 同步包格式版本（结构性变更时 +1，并提供迁移）
+  var WEBDAV_PASS_STORAGE = 'ds_webdav_pass';                    // WebDAV 密码（独立加密存储，不进设置/同步包/日志）
+  var SYNC_META_STORAGE = 'ds_sync_meta';                        // 各字段最后修改时间戳（用于 LWW 冲突解决，避免覆盖/漏同步）
+  function loadSyncMeta() { try { var o = JSON.parse(loadData(SYNC_META_STORAGE) || '{}'); return (o && typeof o === 'object') ? o : {}; } catch(e) { return {}; } }
+  var syncMeta = loadSyncMeta();
+  function touchSyncMeta(field) { try { syncMeta[field] = Date.now(); saveData(SYNC_META_STORAGE, JSON.stringify(syncMeta)); } catch(e) {} }
+  // 捕获原始 fetch（patchFetch 会在 2 秒后包裹全局 fetch，WebDAV 走原始通道避免被统计拦截逻辑干扰）
+  var _dsRawFetch = (function() { try { var p = window.parent || window; var f = p.fetch; return (f ? f.bind(p) : (typeof fetch !== 'undefined' ? fetch.bind(window) : null)); } catch(e) { return null; } })();
+  function _dsFetch() { return _dsRawFetch || fetch; }
   
   // ===== 统一日志工具（error 永远可见，warn 同类去重防刷屏，debug 默认关闭） =====
   // 开启 debug：localStorage.setItem('ds_debug_log','1')；控制台用 -[DS] 过滤全部脚本日志
@@ -91,7 +101,7 @@
   function isMobile() { var p = window.parent || window; return (p.innerWidth || 768) <= 760; } function syncViewportHeight() { try { var p = window.parent || window; var h = (p.visualViewport && p.visualViewport.height) || p.innerHeight || 640; p.document.documentElement.style.setProperty('--ds-vvh', Math.max(320, Math.round(h)) + 'px'); } catch(e) {} } 
 
 // ===== 版本号与更新检测 =====
-var _ds_current_version = "2.35";
+var _ds_current_version = "2.36";
 var _ds_github_repo = "janmk1453/deepseek-tavern-script";
 // 通过 GitHub Pages 原始文件检查新版本（避免 API 限流）
 function checkForUpdates() {
@@ -208,7 +218,11 @@ function init() {
       if (std) { try { state.settings = JSON.parse(std); } catch(e) { _ds_log.warn('设置 JSON 解析失败，使用默认设置', ((e && e.message) || e)); } }
       if (state.settings.useNewPricing === undefined) state.settings.useNewPricing = true;
       if (state.settings.newPricingDate === undefined) state.settings.newPricingDate = new Date('2026-08-17T00:00:00+08:00').getTime(); if (state.settings.customModels === undefined) state.settings.customModels = []; if (state.settings.peakHours === undefined) state.settings.peakHours = JSON.parse(JSON.stringify(DEFAULT_PEAK_HOURS)); if (state.settings.peakDot === undefined) state.settings.peakDot = true;
-      // 版本迁移：从旧版本（< 2.28）升级后的首次运行，强制启用新价格机制并设置为 2026-08-17 生效，高峰时段恢复默认
+      if (!state.settings.webdav || typeof state.settings.webdav !== 'object') state.settings.webdav = { url: 'https://dav.jianguoyun.com/dav/', username: '', path: '' };
+      if (!state.settings.webdav.url) state.settings.webdav.url = 'https://dav.jianguoyun.com/dav/';
+      if (state.settings.webdav.username === undefined) state.settings.webdav.username = '';
+      if (state.settings.webdav.path === undefined) state.settings.webdav.path = '';
+      if (state.settings.webdav.proxy === undefined) state.settings.webdav.proxy = '';
       var lastVer = loadData(LAST_VERSION_STORAGE);
       var needForce = true;
       if (lastVer) {
@@ -268,10 +282,11 @@ function init() {
     } else {
       saveData(CUSTOM_BALANCE_STORAGE, (state.customBalance !== null && state.customBalance !== '') ? String(state.customBalance) : '');
     }
+    touchSyncMeta('customBalance');
   }
-  function saveCurrentSaveKey() { saveData(CURRENT_SAVE_KEY, state.currentSave); }
-  function saveSettings() { saveData(SETTINGS_STORAGE, JSON.stringify(state.settings)); }
-  function saveMessageCount() { saveData(MESSAGE_COUNT_STORAGE, String(state.messageCount)); }
+  function saveCurrentSaveKey() { saveData(CURRENT_SAVE_KEY, state.currentSave); touchSyncMeta('currentSave'); }
+  function saveSettings() { saveData(SETTINGS_STORAGE, JSON.stringify(state.settings)); touchSyncMeta('settings'); }
+  function saveMessageCount() { saveData(MESSAGE_COUNT_STORAGE, String(state.messageCount)); touchSyncMeta('messageCount'); }
   // 面板状态不保存，每次刷新默认关闭
   
   // ===== 计算剩余可对话轮数 =====
@@ -295,7 +310,7 @@ function init() {
   
   // ===== 存档管理：加载、创建、选择、合并、删除 =====
   function loadCurrentSave() { try { var k = loadData(CURRENT_SAVE_KEY); if (k === '__all__' || (k && state.saves[k])) { state.currentSave = k; } else if (Object.keys(state.saves).length > 0) { var keys = Object.keys(state.saves); var latest = keys[0]; var lt = 0; keys.forEach(function(k) { if (state.saves[k].startTime > lt) { lt = state.saves[k].startTime; latest = k; } }); state.currentSave = latest; } else { createNewSave(); } } catch(e) { createNewSave(); } syncCustomBalanceFromSave(); }
-  function createNewSave() { var cn = ''; try { cn = SillyTavern.getContext().name2 || ''; } catch(e) {} var n = new Date(); var key = n.getFullYear() + '' + String(n.getMonth()+1).padStart(2,'0') + '' + String(n.getDate()).padStart(2,'0') + '_' + String(n.getHours()).padStart(2,'0') + String(n.getMinutes()).padStart(2,'0') + String(n.getSeconds()).padStart(2,'0') + '_' + (cn || 'unknown'); state.saves[key] = { name: key, character: cn, startTime: n.getTime(), total_tokens: 0, total_cost: 0, input_tokens: 0, output_tokens: 0, cache_hit_tokens: 0, cache_miss_tokens: 0, input_cost: 0, output_cost: 0, rounds: 0, history: [] }; state.currentSave = key; saveSaves(); saveCurrentSaveKey(); return key; }
+  function createNewSave() { var cn = ''; try { cn = SillyTavern.getContext().name2 || ''; } catch(e) {} var n = new Date(); var key = n.getFullYear() + '' + String(n.getMonth()+1).padStart(2,'0') + '' + String(n.getDate()).padStart(2,'0') + '_' + String(n.getHours()).padStart(2,'0') + String(n.getMinutes()).padStart(2,'0') + String(n.getSeconds()).padStart(2,'0') + '_' + (cn || 'unknown'); state.saves[key] = { name: key, character: cn, startTime: n.getTime(), _mtime: n.getTime(), total_tokens: 0, total_cost: 0, input_tokens: 0, output_tokens: 0, cache_hit_tokens: 0, cache_miss_tokens: 0, input_cost: 0, output_cost: 0, rounds: 0, history: [] }; state.currentSave = key; saveSaves(); saveCurrentSaveKey(); return key; }
   function getSelectedSave() { if (state.currentSave === '__all__') return getMergedStats(); return state.saves[state.currentSave] || null; }
   function getMergedStats() { var m = { total_tokens: 0, total_cost: 0, input_tokens: 0, output_tokens: 0, cache_hit_tokens: 0, cache_miss_tokens: 0, input_cost: 0, output_cost: 0, rounds: 0, history: [], startTime: Date.now() }; var ah = []; var es = Date.now(); Object.keys(state.saves).forEach(function(k) { var s = state.saves[k]; m.total_tokens += s.total_tokens || 0; m.total_cost += s.total_cost || 0; m.input_tokens += s.input_tokens || 0; m.output_tokens += s.output_tokens || 0; m.cache_hit_tokens += s.cache_hit_tokens || 0; m.cache_miss_tokens += s.cache_miss_tokens || 0; m.input_cost += s.input_cost || 0; m.output_cost += s.output_cost || 0; m.rounds += s.rounds || 0; if (s.startTime && s.startTime < es) es = s.startTime; ah = ah.concat(s.history || []); }); m.startTime = es; ah.sort(function(a, b) { return b.timestamp - a.timestamp; }); m.history = ah.slice(0, MAX_HISTORY); return m; }
   function deleteSave(key) { delete state.saves[key]; saveSaves(); if (state.currentSave === key) { var keys = Object.keys(state.saves); state.currentSave = keys.length > 0 ? keys[0] : null; if (!state.currentSave) createNewSave(); saveCurrentSaveKey(); syncCustomBalanceFromSave(); } }
@@ -397,6 +412,11 @@ function init() {
     var settings = (d.settings && typeof d.settings === 'object') ? d.settings : {};
     if (settings.useNewPricing === undefined) settings.useNewPricing = true;
     if (settings.newPricingDate === undefined) settings.newPricingDate = new Date('2026-08-17T00:00:00+08:00').getTime(); if (settings.customModels === undefined) settings.customModels = []; if (settings.peakHours === undefined) settings.peakHours = JSON.parse(JSON.stringify(DEFAULT_PEAK_HOURS)); if (settings.peakDot === undefined) settings.peakDot = true;
+    if (!settings.webdav || typeof settings.webdav !== 'object') settings.webdav = { url: 'https://dav.jianguoyun.com/dav/', username: '', path: '' };
+    if (!settings.webdav.url) settings.webdav.url = 'https://dav.jianguoyun.com/dav/';
+    if (settings.webdav.username === undefined) settings.webdav.username = '';
+    if (settings.webdav.path === undefined) settings.webdav.path = '';
+    if (settings.webdav.proxy === undefined) settings.webdav.proxy = '';
     d.settings = settings;
     if (d.currentSave !== undefined && !saves[d.currentSave]) d.currentSave = null;
     return { data: d, skipped: skipped };
@@ -663,7 +683,247 @@ function init() {
     if (state.chartPanelOpen) { try { renderCharts(); } catch(e) {} }
     try { toastr.success(mode === 'overwrite' ? '导入完成：已覆盖全部数据' : '导入完成：已合并存档'); } catch(e) {}
   }
-  
+
+  // ===== WebDAV 云同步（双向合并，pull-merge-push） =====
+  // 安全：仅 https；密码独立加密存储（不进设置/同步包/日志）；同步包严格白名单，剥离聊天内容与提示词。
+  // 数据正确性：saves 按 key 并集、history 按 timestamp 去重合并（保留本地更完整条目），标量按 _mtime、元数据按 _ts 晚者胜；
+  // 先拉取合并再上传合并结果，因此上传不会用旧数据覆盖云端新数据，下载也不会覆盖本地更新。
+  var _ds_sync_in_progress = false;
+  function _dsB64(str) { try { return btoa(unescape(encodeURIComponent(str))); } catch(e) { return btoa(str); } }
+  function webdavAuthHeader() {
+    var cfg = state.settings.webdav || {};
+    var pass = '';
+    try { pass = decryptKey(loadData(WEBDAV_PASS_STORAGE) || ''); } catch(e) {}
+    return 'Basic ' + _dsB64((cfg.username || '') + ':' + pass);
+  }
+  function webdavRealUrl() {
+    var cfg = state.settings.webdav || {};
+    var base = (cfg.url || '').trim().replace(/\/+$/, '');
+    var path = (cfg.path || '').trim().replace(/^\/+|\/+$/g, '');
+    var u = base + '/';
+    if (path) u += path + '/';
+    u += WEBDAV_SYNC_FILE;
+    return u;
+  }
+  // 可选的 CORS 代理：浏览器无法直连坚果云等不返回 CORS 头的 WebDAV，需经代理转发
+  // 支持两种格式：路径式（如 https://代理/，拼接为 代理/encodeURIComponent(url)）与
+  // 查询式（如 http://127.0.0.1:8000/proxy?url=，拼接为 代理+encodeURIComponent(url)）
+  function webdavReqUrl(realUrl) {
+    var proxy = ((state.settings.webdav || {}).proxy || '').trim();
+    if (!proxy) return realUrl;
+    if (proxy.indexOf('?') !== -1) return proxy + encodeURIComponent(realUrl);
+    return proxy.replace(/\/+$/, '') + '/' + encodeURIComponent(realUrl);
+  }
+  function webdavDirs() {
+    var cfg = state.settings.webdav || {};
+    var base = (cfg.url || '').trim().replace(/\/+$/, '');
+    var path = (cfg.path || '').trim().replace(/^\/+|\/+$/g, '');
+    var out = [];
+    if (path) { var acc = base; path.split('/').forEach(function(seg) { if (seg) { acc += '/' + seg; out.push(acc); } }); }
+    return out;
+  }
+  function webdavGet() {
+    var url = webdavReqUrl(webdavRealUrl());
+    return _dsFetch()(url, { method: 'GET', headers: { 'Authorization': webdavAuthHeader(), 'Accept': '*/*' } })
+      .then(function(r) {
+        if (r.status === 404) return { exists: false };
+        if (!r.ok) return { exists: true, error: true, status: r.status };
+        return r.text().then(function(t) { return { exists: true, text: t }; });
+      })
+      .catch(function(e) { return { exists: false, netError: true, errName: (e && e.name) || '', errMsg: (e && e.message) || String(e) }; });
+  }
+  function webdavMkcol(dirUrl) {
+    var url = webdavReqUrl(dirUrl);
+    return _dsFetch()(url, { method: 'MKCOL', headers: { 'Authorization': webdavAuthHeader() } })
+      .then(function(r) { return r.status === 201 || r.status === 405 || r.status === 409 || r.status === 204; })
+      .catch(function() { return false; });
+  }
+  function webdavPut(text) {
+    var dirs = webdavDirs();
+    var chain = Promise.resolve(true);
+    dirs.forEach(function(d) { chain = chain.then(function() { return webdavMkcol(d); }); });
+    var url = webdavReqUrl(webdavRealUrl());
+    return chain.then(function() {
+      return _dsFetch()(url, { method: 'PUT', headers: { 'Authorization': webdavAuthHeader(), 'Content-Type': 'application/json; charset=utf-8' }, body: text });
+    }).then(function(r) { if (!r.ok) throw new Error('上传失败 HTTP ' + r.status); return true; });
+  }
+  function buildLocalBundle() {
+    var saves = {};
+    Object.keys(state.saves).forEach(function(k) {
+      var s = state.saves[k];
+      var ns = JSON.parse(JSON.stringify(s || {}));
+      if (ns.history && ns.history.length) {
+        ns.history.forEach(function(h) { if (h && typeof h === 'object') { delete h.messages; delete h.fullRequest; delete h.fullResponse; } });
+      }
+      saves[k] = ns;
+    });
+    return {
+      format: 'deepseek-stat-sync',
+      version: WEBDAV_REMOTE_VERSION,
+      syncedAt: Date.now(),
+      data: {
+        saves: saves,
+        currentSave: state.currentSave,
+        balance: state.balance,
+        customBalance: state.customBalance,
+        settings: JSON.parse(JSON.stringify(state.settings)),
+        messageCount: state.messageCount
+      },
+      _ts: {
+        settings: syncMeta.settings || 0,
+        balance: syncMeta.balance || 0,
+        customBalance: syncMeta.customBalance || 0,
+        currentSave: syncMeta.currentSave || 0,
+        messageCount: syncMeta.messageCount || 0
+      }
+    };
+  }
+  function _dsPickLatest(a, b, ta, tb) { return (tb > ta) ? b : a; }
+  // 双向合并：saves 按 key 并集、history 按 timestamp 去重（本地条目更完整则覆盖），标量按 _mtime、元数据按 _ts 晚者胜
+  function mergeBundles(remote, local) {
+    var pulled = 0, pushed = 0;
+    var rd = remote.data || {};
+    var ld = local.data || {};
+    var rts = remote._ts || {};
+    var lts = local._ts || {};
+    var saves = {};
+    var keys = {};
+    Object.keys(ld.saves || {}).forEach(function(k) { keys[k] = 1; });
+    Object.keys(rd.saves || {}).forEach(function(k) { keys[k] = 1; });
+    Object.keys(keys).forEach(function(k) {
+      var ls = (ld.saves || {})[k];
+      var rs = (rd.saves || {})[k];
+      if (!rs) { saves[k] = JSON.parse(JSON.stringify(ls)); pushed += (ls.history ? ls.history.length : 0); return; }
+      if (!ls) { saves[k] = JSON.parse(JSON.stringify(rs)); pulled += (rs.history ? rs.history.length : 0); return; }
+      var lseen = {};
+      (ls.history || []).forEach(function(h) { if (h && h.timestamp !== undefined) lseen[h.timestamp] = true; });
+      var rseen = {};
+      (rs.history || []).forEach(function(h) { if (h && h.timestamp !== undefined) rseen[h.timestamp] = true; });
+      var hist = [];
+      (rs.history || []).forEach(function(h) { if (h && h.timestamp !== undefined) { if (!lseen[h.timestamp]) pulled++; hist.push(h); } });
+      (ls.history || []).forEach(function(h) {
+        if (!h || h.timestamp === undefined) return;
+        if (!rseen[h.timestamp]) { pushed++; hist.push(h); }
+        else { for (var i = 0; i < hist.length; i++) { if (hist[i].timestamp === h.timestamp) { hist[i] = h; break; } } }
+      });
+      hist.sort(function(a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
+      if (hist.length > MAX_HISTORY) hist = hist.slice(0, MAX_HISTORY);
+      var lm = ls._mtime || ls.startTime || 0;
+      var rm = rs._mtime || rs.startTime || 0;
+      var ns = {};
+      ['name', 'character', 'customBalance', 'startTime', 'total_tokens', 'total_cost', 'input_tokens', 'output_tokens', 'cache_hit_tokens', 'cache_miss_tokens', 'input_cost', 'output_cost', 'rounds'].forEach(function(f) {
+        var lv = ls[f], rv = rs[f];
+        ns[f] = (lm >= rm) ? (lv !== undefined ? lv : rv) : (rv !== undefined ? rv : lv);
+      });
+      ns._mtime = Math.max(lm, rm);
+      ns.history = hist;
+      [ls, rs].forEach(function(src) { if (src) Object.keys(src).forEach(function(f) { if (ns[f] === undefined) ns[f] = src[f]; }); });
+      saves[k] = ns;
+    });
+    var data = {
+      saves: saves,
+      currentSave: _dsPickLatest(ld.currentSave, rd.currentSave, lts.currentSave || 0, rts.currentSave || 0),
+      balance: _dsPickLatest(ld.balance, rd.balance, lts.balance || 0, rts.balance || 0),
+      customBalance: _dsPickLatest(ld.customBalance, rd.customBalance, lts.customBalance || 0, rts.customBalance || 0),
+      messageCount: _dsPickLatest(ld.messageCount, rd.messageCount, lts.messageCount || 0, rts.messageCount || 0),
+      settings: _dsPickLatest(ld.settings, rd.settings, lts.settings || 0, rts.settings || 0)
+    };
+    var meta = {
+      settings: Math.max(lts.settings || 0, rts.settings || 0),
+      balance: Math.max(lts.balance || 0, rts.balance || 0),
+      customBalance: Math.max(lts.customBalance || 0, rts.customBalance || 0),
+      currentSave: Math.max(lts.currentSave || 0, rts.currentSave || 0),
+      messageCount: Math.max(lts.messageCount || 0, rts.messageCount || 0)
+    };
+    return { mergedData: data, pulled: pulled, pushed: pushed, meta: meta };
+  }
+  function applyMerged(data, meta) {
+    state.saves = data.saves || {};
+    Object.keys(state.saves).forEach(function(k) { var s = state.saves[k]; if (!s.history) s.history = []; if (s.history) s.history.forEach(function(h) { if (h && h.priceType === undefined) h.priceType = 'old'; }); });
+    state.currentSave = data.currentSave;
+    state.balance = data.balance;
+    state.customBalance = data.customBalance;
+    state.messageCount = data.messageCount || 0;
+    if (data.settings && typeof data.settings === 'object') {
+      state.settings = data.settings;
+      if (!state.settings.webdav || typeof state.settings.webdav !== 'object') state.settings.webdav = { url: 'https://dav.jianguoyun.com/dav/', username: '', path: '' };
+      if (!state.settings.webdav.url) state.settings.webdav.url = 'https://dav.jianguoyun.com/dav/';
+      if (state.settings.webdav.username === undefined) state.settings.webdav.username = '';
+      if (state.settings.webdav.path === undefined) state.settings.webdav.path = '';
+      if (state.settings.useNewPricing === undefined) state.settings.useNewPricing = true;
+      if (state.settings.newPricingDate === undefined) state.settings.newPricingDate = new Date('2026-08-17T00:00:00+08:00').getTime();
+      if (state.settings.customModels === undefined) state.settings.customModels = [];
+      if (state.settings.peakHours === undefined) state.settings.peakHours = JSON.parse(JSON.stringify(DEFAULT_PEAK_HOURS));
+      if (state.settings.peakDot === undefined) state.settings.peakDot = true;
+    }
+    if (meta && typeof meta === 'object') { syncMeta = meta; saveData(SYNC_META_STORAGE, JSON.stringify(syncMeta)); }
+    saveSaves();
+    saveData(SETTINGS_STORAGE, JSON.stringify(state.settings));
+    saveData(CURRENT_SAVE_KEY, state.currentSave);
+    saveData(MESSAGE_COUNT_STORAGE, String(state.messageCount));
+    if (state.customBalance !== null && state.customBalance !== '') saveData(CUSTOM_BALANCE_STORAGE, String(state.customBalance));
+    else saveData(CUSTOM_BALANCE_STORAGE, '');
+    if (state.balance) saveData(BALANCE_STORAGE, JSON.stringify(state.balance));
+    recalcAllCosts();
+    if (!state.currentSave || !state.saves[state.currentSave]) {
+      var ks = Object.keys(state.saves);
+      state.currentSave = ks.length > 0 ? ks[0] : null;
+    }
+    if (!state.currentSave) createNewSave();
+    try { refreshUI(); } catch(e) {}
+    return true;
+  }
+  function setWebdavStatus(msg, isErr) {
+    try { var el = (window.parent || window).document.getElementById('ds-webdav-status'); if (el) { el.textContent = msg; el.style.color = isErr ? '#f87171' : '#34d399'; } } catch(e) {}
+  }
+  function doSyncNow() {
+    if (_ds_sync_in_progress) { _ds_toast('warning', '同步进行中，请稍候'); return; }
+    var cfg = state.settings.webdav || {};
+    if (!cfg.url || !cfg.username) { _ds_toast('error', '请先在设置中填写 WebDAV 服务器地址与用户名'); setWebdavStatus('未配置', true); return; }
+    if (!/^https:\/\//i.test(cfg.url)) { _ds_toast('error', 'WebDAV 地址必须为 https，已取消以保护凭据'); setWebdavStatus('地址需 https', true); return; }
+    var btn = null;
+    try { btn = (window.parent || window).document.getElementById('ds-btn-webdav-sync'); } catch(e) {}
+    _ds_sync_in_progress = true;
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; }
+    setWebdavStatus('同步中…', false);
+    var local = buildLocalBundle();
+    webdavGet().then(function(res) {
+      if (res.netError) {
+        var isCors = (res.errName === 'TypeError') || /Failed to fetch|NetworkError|跨域|CORS/i.test(res.errMsg || '');
+        if (isCors) throw new Error('浏览器跨域(CORS)被拦截：坚果云等 WebDAV 默认不允许网页直接访问。请配置「CORS 代理」（见说明），或改用支持 CORS 的 WebDAV 服务');
+        throw new Error('网络错误，无法连接服务器（' + (res.errMsg || '未知') + '）');
+      }
+      if (res.error) throw new Error('读取云端失败 HTTP ' + (res.status || ''));
+      var merged;
+      if (!res.exists) {
+        merged = { mergedData: local.data, pulled: 0, pushed: 0, meta: local._ts };
+      } else {
+        var remote;
+        try { remote = JSON.parse(res.text); } catch(e) { throw new Error('云端文件解析失败，已保留云端不覆盖'); }
+        if (remote.format !== 'deepseek-stat-sync') throw new Error('云端文件格式不符，已保留不覆盖');
+        if (remote.version > WEBDAV_REMOTE_VERSION) throw new Error('云端版本过高，请升级脚本后再同步');
+        merged = mergeBundles(remote, local);
+      }
+      applyMerged(merged.mergedData, merged.meta);
+      return webdavPut(JSON.stringify(buildLocalBundle())).then(function() { return merged; });
+    }).then(function(merged) {
+      _ds_sync_in_progress = false;
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+      var msg = '同步完成';
+      if (merged.pulled) msg += '（拉取 ' + merged.pulled + ' 条）';
+      if (merged.pushed) msg += '（上传 ' + merged.pushed + ' 条）';
+      _ds_toast('success', msg);
+      try { refreshSettingsUI(); } catch(e) {}
+      setWebdavStatus('上次同步：' + new Date().toLocaleTimeString('zh-CN'), false);
+    }).catch(function(err) {
+      _ds_sync_in_progress = false;
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; }
+      _ds_log.error('WebDAV 同步失败：' + ((err && err.message) || err));
+      _ds_toast('error', '同步失败：' + ((err && err.message) || err));
+      setWebdavStatus('同步失败', true);
+    });
+  }
+
   // ===== 注册酒馆事件监听 =====
   function setupEvents() { eventOn(tavern_events.MESSAGE_RECEIVED, function() { setTimeout(function() { refreshUI(); }, 500); }); try { eventOn(getButtonEvent('打开面板'), function() { togglePanel(); }); } catch(e) {} }
 
@@ -739,7 +999,7 @@ function init() {
   // ===== 处理单次 API 调用用量 =====
   // 从 usage 中提取 token 数，计算费用，更新当前存档和历史记录
   function processUsage(usage, model, messages, startTime, fullRequest, fullResponse, ttft, thinkTime) {
-     messages = messages || []; var model = model || ''; if (!model) { try { model = SillyTavern.getContext().model || ''; } catch(e) {} } if (!model) model = 'deepseek'; var hit = usage.prompt_cache_hit_tokens || 0; if (!hit && usage.prompt_tokens_details && usage.prompt_tokens_details.cached_tokens) { hit = usage.prompt_tokens_details.cached_tokens; } var miss = usage.prompt_cache_miss_tokens; if (miss === undefined || miss === null) { miss = (usage.prompt_tokens || usage.input_tokens || 0) - hit; if (miss < 0) miss = 0; } var comp = usage.completion_tokens || usage.output_tokens || 0; var total = usage.total_tokens || (hit + miss + comp); var lu = { timestamp: Date.now(), model: model, prompt_tokens: hit + miss, prompt_cache_hit_tokens: hit, prompt_cache_miss_tokens: miss, completion_tokens: comp, total_tokens: total }; var duration = startTime ? (Date.now() - startTime) : 0; var ttftVal = (ttft && ttft > 0) ? ttft : 0; var netDuration = duration - (ttftVal || 0); var tokenRate = netDuration > 50 && comp > 0 ? Math.round((comp / netDuration) * 1000) : 0; var thinkTokens = 0; try { thinkTokens = (usage.completion_tokens_details && usage.completion_tokens_details.reasoning_tokens) || 0; } catch(e){} lu.duration = duration; lu.tokenRate = tokenRate; lu.ttft = ttftVal; lu.thinkTime = (thinkTime && thinkTime > 0) ? thinkTime : 0; lu.thinkTokens = thinkTokens;     lu.messages = messages; var _c = calcCost(lu); lu.cost = _c; lu.input_cost = _c.input; lu.output_cost = _c.output; lu.priceType = _c.priceType; lu.rawUsage = usage; lu.fullRequest = fullRequest || null; lu.fullResponse = fullResponse || null; state.lastUsage = lu; var s = getSelectedSave(); if (!s) return; if (state.currentSave === '__all__') { var _dsLt = 0, _dsReal = null; Object.keys(state.saves).forEach(function(_k) { var _sv = state.saves[_k]; if (_sv && _sv.startTime > _dsLt) { _dsLt = _sv.startTime; _dsReal = _sv; } }); if (_dsReal) { s = _dsReal; } else { var _sk = Object.keys(state.saves)[0]; if (_sk) s = state.saves[_sk]; } } s.total_tokens += lu.total_tokens; s.total_cost += lu.cost.total; s.input_tokens += lu.prompt_tokens; s.output_tokens += lu.completion_tokens; s.cache_hit_tokens += lu.prompt_cache_hit_tokens; s.cache_miss_tokens += lu.prompt_cache_miss_tokens; s.input_cost += lu.cost.input; s.output_cost += lu.cost.output; if (isDeepSeekOfficialModel(lu.model)) { s.rounds += 1; } s.history.unshift({ timestamp: lu.timestamp, model: lu.model, prompt_tokens: lu.prompt_tokens, cache_hit_tokens: lu.prompt_cache_hit_tokens, cache_miss_tokens: lu.prompt_cache_miss_tokens, completion_tokens: lu.completion_tokens, total_tokens: lu.total_tokens, input_cost: lu.cost.input, output_cost: lu.cost.output, cost: lu.cost.total, cache_hit_rate: lu.prompt_tokens > 0 ? (lu.prompt_cache_hit_tokens / lu.prompt_tokens * 100) : 0, priceType: lu.cost.priceType || 'old', raw_usage: lu.rawUsage, messages: lu.messages, duration: lu.duration, ttft: lu.ttft, thinkTime: lu.thinkTime, thinkTokens: lu.thinkTokens, tokenRate: lu.tokenRate, fullRequest: lu.fullRequest, fullResponse: lu.fullResponse }); if (s.history.length > MAX_HISTORY) s.history = s.history.slice(0, MAX_HISTORY); saveSaves(); if (state.customBalance !== null && state.customBalance !== '') { state.customBalance = parseFloat(state.customBalance) - lu.cost.total; persistCustomBalance(); } else if (state.balance && state.balance.balance) { state.balance.balance = parseFloat(state.balance.balance) - lu.cost.total; saveData(BALANCE_STORAGE, JSON.stringify(state.balance)); } state.messageCount++; saveMessageCount(); if (state.settings.autoBalance && state.apiKey && state.messageCount >= state.settings.balanceInterval) { state.messageCount = 0; saveMessageCount(); autoQueryBalance(); } refreshUI(); }
+     messages = messages || []; var model = model || ''; if (!model) { try { model = SillyTavern.getContext().model || ''; } catch(e) {} } if (!model) model = 'deepseek'; var hit = usage.prompt_cache_hit_tokens || 0; if (!hit && usage.prompt_tokens_details && usage.prompt_tokens_details.cached_tokens) { hit = usage.prompt_tokens_details.cached_tokens; } var miss = usage.prompt_cache_miss_tokens; if (miss === undefined || miss === null) { miss = (usage.prompt_tokens || usage.input_tokens || 0) - hit; if (miss < 0) miss = 0; } var comp = usage.completion_tokens || usage.output_tokens || 0; var total = usage.total_tokens || (hit + miss + comp); var lu = { timestamp: Date.now(), model: model, prompt_tokens: hit + miss, prompt_cache_hit_tokens: hit, prompt_cache_miss_tokens: miss, completion_tokens: comp, total_tokens: total }; var duration = startTime ? (Date.now() - startTime) : 0; var ttftVal = (ttft && ttft > 0) ? ttft : 0; var netDuration = duration - (ttftVal || 0); var tokenRate = netDuration > 50 && comp > 0 ? Math.round((comp / netDuration) * 1000) : 0; var thinkTokens = 0; try { thinkTokens = (usage.completion_tokens_details && usage.completion_tokens_details.reasoning_tokens) || 0; } catch(e){} lu.duration = duration; lu.tokenRate = tokenRate; lu.ttft = ttftVal; lu.thinkTime = (thinkTime && thinkTime > 0) ? thinkTime : 0; lu.thinkTokens = thinkTokens;     lu.messages = messages; var _c = calcCost(lu); lu.cost = _c; lu.input_cost = _c.input; lu.output_cost = _c.output; lu.priceType = _c.priceType; lu.rawUsage = usage; lu.fullRequest = fullRequest || null; lu.fullResponse = fullResponse || null; state.lastUsage = lu; var s = getSelectedSave(); if (!s) return; if (state.currentSave === '__all__') { var _dsLt = 0, _dsReal = null; Object.keys(state.saves).forEach(function(_k) { var _sv = state.saves[_k]; if (_sv && _sv.startTime > _dsLt) { _dsLt = _sv.startTime; _dsReal = _sv; } }); if (_dsReal) { s = _dsReal; } else { var _sk = Object.keys(state.saves)[0]; if (_sk) s = state.saves[_sk]; } } s.total_tokens += lu.total_tokens; s.total_cost += lu.cost.total; s.input_tokens += lu.prompt_tokens; s.output_tokens += lu.completion_tokens; s.cache_hit_tokens += lu.prompt_cache_hit_tokens; s.cache_miss_tokens += lu.prompt_cache_miss_tokens; s.input_cost += lu.cost.input; s.output_cost += lu.cost.output; if (isDeepSeekOfficialModel(lu.model)) { s.rounds += 1; } s.history.unshift({ timestamp: lu.timestamp, model: lu.model, prompt_tokens: lu.prompt_tokens, cache_hit_tokens: lu.prompt_cache_hit_tokens, cache_miss_tokens: lu.prompt_cache_miss_tokens, completion_tokens: lu.completion_tokens, total_tokens: lu.total_tokens, input_cost: lu.cost.input, output_cost: lu.cost.output, cost: lu.cost.total, cache_hit_rate: lu.prompt_tokens > 0 ? (lu.prompt_cache_hit_tokens / lu.prompt_tokens * 100) : 0, priceType: lu.cost.priceType || 'old', raw_usage: lu.rawUsage, messages: lu.messages, duration: lu.duration, ttft: lu.ttft, thinkTime: lu.thinkTime, thinkTokens: lu.thinkTokens, tokenRate: lu.tokenRate, fullRequest: lu.fullRequest, fullResponse: lu.fullResponse });       if (s.history.length > MAX_HISTORY) s.history = s.history.slice(0, MAX_HISTORY); s._mtime = Date.now(); saveSaves(); if (state.customBalance !== null && state.customBalance !== '') { state.customBalance = parseFloat(state.customBalance) - lu.cost.total; persistCustomBalance(); } else if (state.balance && state.balance.balance) { state.balance.balance = parseFloat(state.balance.balance) - lu.cost.total; saveData(BALANCE_STORAGE, JSON.stringify(state.balance)); } state.messageCount++; saveMessageCount(); if (state.settings.autoBalance && state.apiKey && state.messageCount >= state.settings.balanceInterval) { state.messageCount = 0; saveMessageCount(); autoQueryBalance(); } refreshUI(); }
   
   // ===== 根据 token 用量和定价表计算费用 =====
   // 支持新旧两套定价，新定价区分高峰/非高峰时段
@@ -823,6 +1083,7 @@ function init() {
     if (s.history.length > maxHistory) s.history = s.history.slice(0, maxHistory);
     s.history.sort(function(a, b) { return b.timestamp - a.timestamp; });
     recalcAllCosts();
+    s._mtime = Date.now();
     saveSaves();
     refreshUI();
     if (state.chartPanelOpen) {
@@ -856,7 +1117,7 @@ function init() {
     return '****' + key.slice(-4);
   }
   function saveApiKey(key) { saveData(KEY_STORAGE, encryptKey(key)); state.apiKey = key; }
-  function saveBalanceData(data) { state.balance = data; saveData(BALANCE_STORAGE, JSON.stringify(data)); }
+  function saveBalanceData(data) { state.balance = data; saveData(BALANCE_STORAGE, JSON.stringify(data)); touchSyncMeta('balance'); }
   
   // ===== 调用 DeepSeek 余额 API 查询余额 =====
   async function queryBalance() { var p = window.parent || window; var doc = p.document; var se = doc.getElementById('ds-balance-status'); var be = doc.getElementById('ds-balance'); var btn = doc.getElementById('ds-btn-query-balance'); if (!state.apiKey) { if (se) se.textContent = '请先输入API密钥'; return; } if (btn) btn.textContent = '查询中...'; if (se) se.textContent = '正在查询...'; try { var r = await fetch('https://api.deepseek.com/user/balance', { method: 'GET', headers: { 'Authorization': 'Bearer ' + state.apiKey, 'Content-Type': 'application/json' } }); var d = await r.json(); if (d.is_available && d.balance_infos && d.balance_infos.length > 0) { var i = d.balance_infos[0]; saveBalanceData({ balance: i.total_balance, currency: i.currency, available: d.is_available, timestamp: Date.now() }); if (state.customBalance === null || state.customBalance === '') { if (be) be.textContent = '\u00A5' + i.total_balance + ' ' + i.currency; if (se) se.textContent = '\u8D26\u6237\u53EF\u7528 | ' + new Date().toLocaleTimeString('zh-CN'); } else { if (se) se.textContent = '\u81EA\u5B9A\u4E49\u4F59\u989D\u7565\u8FC7 | API: \u00A5' + i.total_balance; } } else { if (be) be.textContent = '\u67E5\u8BE2\u5931\u8D25'; if (se) se.textContent = d.error ? d.error.message : '\u8BF7\u68C0\u67E5\u5BC6\u94A5'; } } catch(e) { if (be) be.textContent = '\u7F51\u7EDC\u9519\u8BEF'; if (se) se.textContent = e.message; } if (btn) btn.textContent = '\u67E5\u8BE2'; }
@@ -1478,7 +1739,8 @@ function createChartUI() {
 
 
   // ===== 设置窗口内容模板（迁移自原主面板设置菜单） =====
-  var SETTINGS_PANEL_HTML = "<div style=\"font-size:11px;color:#9ca3af;font-weight:500;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px\">设置</div><div style=\"display:flex;flex-direction:column;gap:10px\"><div style=\"margin-bottom:2px\"><div style=\"font-size:11px;color:#9ca3af;font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px\">API密钥</div><div style=\"display:flex;gap:6px\"><input id=\"ds-api-key\" type=\"password\" placeholder=\"输入DeepSeek API密钥\" style=\"flex:1;padding:8px 10px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:13px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"><button id=\"ds-btn-save-key\" style=\"padding:8px 12px;border:1px solid #374151;border-radius:6px;background:#374151;color:#e5e7eb;font-size:12px;font-weight:500;cursor:pointer;font-family:'Microsoft YaHei','微软雅黑',sans-serif;white-space:nowrap\">保存</button></div></div><div style=\"border-top:1px solid #374151;padding-top:10px\"><div style=\"display:flex;align-items:center;justify-content:space-between\"><span style=\"font-size:13px;color:#e5e7eb;font-weight:500\">自动校准余额</span><label style=\"position:relative;display:inline-block;width:44px;height:24px;cursor:pointer\"><input type=\"checkbox\" id=\"ds-auto-balance\" style=\"opacity:0;width:0;height:0\"><span style=\"position:absolute;top:0;left:0;right:0;bottom:0;background:#374151;border-radius:12px;transition:0.3s;cursor:pointer\"><span id=\"ds-auto-balance-slider\" style=\"position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:0.3s\"></span></span></label></div><div id=\"ds-auto-balance-interval\" style=\"display:none;margin-top:8px\"><div style=\"display:flex;align-items:center;justify-content:space-between\"><span style=\"font-size:13px;color:#e5e7eb;font-weight:500\">校准间隔</span><div style=\"display:flex;align-items:center;gap:8px\"><input type=\"number\" id=\"ds-balance-interval\" min=\"1\" max=\"100\" value=\"10\" style=\"width:60px;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:13px;text-align:center;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"><span style=\"font-size:12px;color:#9ca3af\">条消息</span></div></div></div></div><div style=\"border-top:1px solid #374151;padding-top:10px\"><div style=\"font-size:11px;color:#9ca3af;font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px\">自定义余额</div><div style=\"font-size:12px;color:#6b7280;margin-bottom:8px\">手动设置余额，设置后将覆盖API查询值</div><div style=\"display:flex;gap:6px\"><input id=\"ds-custom-balance\" type=\"number\" step=\"0.01\" placeholder=\"输入余额金额\" style=\"flex:1;padding:8px 10px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:13px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"><button id=\"ds-btn-save-balance\" style=\"padding:8px 12px;border:1px solid #065f46;border-radius:6px;background:#065f46;color:#6ee7b7;font-size:12px;font-weight:500;cursor:pointer;font-family:'Microsoft YaHei','微软雅黑',sans-serif;white-space:nowrap\">保存</button><button id=\"ds-btn-clear-balance\" style=\"padding:8px 12px;border:1px solid #7f1d1d;border-radius:6px;background:#7f1d1d;color:#fca5a5;font-size:12px;font-weight:500;cursor:pointer;font-family:'Microsoft YaHei','微软雅黑',sans-serif;white-space:nowrap\">清除</button></div><div id=\"ds-custom-balance-status\" style=\"font-size:11px;color:#6b7280;margin-top:4px\"></div></div></div><div style=\"border-top:1px solid #374151;padding-top:10px\"><div style=\"display:flex;align-items:center;justify-content:space-between\"><span style=\"font-size:13px;color:#e5e7eb;font-weight:500\">新价格机制</span><label style=\"position:relative;display:inline-block;width:44px;height:24px;cursor:pointer\"><input type=\"checkbox\" id=\"ds-use-new-pricing\" style=\"opacity:0;width:0;height:0\"><span style=\"position:absolute;top:0;left:0;right:0;bottom:0;background:#374151;border-radius:12px;transition:0.3s;cursor:pointer\"><span id=\"ds-use-new-pricing-slider\" style=\"position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:0.3s\"></span></span></label></div><div id=\"ds-new-pricing-panel\" style=\"display:none;margin-top:8px\"><div style=\"display:flex;align-items:center;gap:6px;margin-bottom:6px\"><span style=\"font-size:11px;color:#6b7280;white-space:nowrap\">生效日期</span><input type=\"date\" id=\"ds-new-pricing-date\" style=\"flex:1;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"><button id=\"ds-btn-pricing-today\" style=\"padding:4px 8px;border:1px solid #374151;border-radius:4px;background:#0e1520;color:#60a5fa;font-size:11px;cursor:pointer;font-family:'Microsoft YaHei','微软雅黑',sans-serif;white-space:nowrap\">今天</button></div><div style=\"font-size:10px;color:#6b7280;line-height:1.5\"><div style=\"font-weight:500;color:#9ca3af;margin-bottom:4px\">高峰时段（北京时间）</div><div>结束时间早于开始时间视为跨天（如 22:00~次日02:00）</div></div><div id=\"ds-peak-hours-list\" style=\"margin-top:6px;display:flex;flex-direction:column;gap:4px\"></div><div style=\"display:flex;justify-content:flex-end;margin-top:6px\"><button id=\"ds-btn-add-peak-hour\" style=\"padding:4px 10px;border:1px solid #374151;border-radius:5px;background:#0e1520;color:#60a5fa;font-size:11px;cursor:pointer;font-family:'Microsoft YaHei','微软雅黑',sans-serif\">＋ 添加时段</button></div><div style=\"font-size:10px;color:#6b7280;margin-top:4px\">该时间之前的请求统一使用旧价格</div><div id=\"ds-new-pricing-status\" style=\"font-size:11px;color:#6b7280;margin-top:4px\"></div></div></div><div style=\"border-top:1px solid #374151;padding-top:10px\"><div style=\"display:flex;align-items:center;justify-content:space-between\"><span style=\"font-size:13px;color:#e5e7eb;font-weight:500\">峰值提示小圆点</span><label style=\"position:relative;display:inline-block;width:44px;height:24px;cursor:pointer\"><input type=\"checkbox\" id=\"ds-peak-dot\" style=\"opacity:0;width:0;height:0\"><span style=\"position:absolute;top:0;left:0;right:0;bottom:0;background:#374151;border-radius:12px;transition:0.3s;cursor:pointer\"><span id=\"ds-peak-dot-slider\" style=\"position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:0.3s\"></span></span></label></div><div style=\"font-size:11px;color:#6b7280;margin-top:6px;line-height:1.6\">在酒馆右上角显示高峰提示小圆点：高峰时段红色、临近高峰(10分钟内)黄色、非高峰绿色，可拖动并记忆位置</div><div style=\"display:flex;align-items:center;gap:6px;margin-top:8px\"><button id=\"ds-btn-reset-peak-dot\" style=\"padding:4px 10px;border:1px solid #374151;border-radius:5px;background:#0e1520;color:#60a5fa;font-size:11px;cursor:pointer;font-family:'Microsoft YaHei','微软雅黑',sans-serif\">重置位置</button><span style=\"font-size:10px;color:#6b7280\">将圆点恢复至右上角默认位置</span></div></div><div style=\"border-top:1px solid #374151;padding-top:10px\"><div style=\"font-size:11px;color:#9ca3af;font-weight:500;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px\">模型与价格</div><div style=\"font-size:11px;color:#6b7280;line-height:1.6;margin-bottom:6px\">模型名需与 API 返回的 model 一致；价格为 ¥/百万 tokens；留空则回落内置价格，内置模型不可删除。</div><div id=\"ds-custom-models-list\" style=\"display:flex;flex-direction:column;gap:6px\"></div><div style=\"display:flex;justify-content:flex-end;margin-top:6px\"><button id=\"ds-btn-add-model\" style=\"padding:4px 10px;border:1px solid #374151;border-radius:5px;background:#0e1520;color:#60a5fa;font-size:11px;cursor:pointer;font-family:'Microsoft YaHei','微软雅黑',sans-serif\">＋ 添加模型</button></div></div><div style=\"border-top:1px solid #374151;padding-top:10px\"><div style=\"display:flex;align-items:center;justify-content:space-between\"><span style=\"font-size:13px;color:#e5e7eb;font-weight:500\">调试模式</span><label style=\"position:relative;display:inline-block;width:44px;height:24px;cursor:pointer\"><input type=\"checkbox\" id=\"ds-debug-mode\" style=\"opacity:0;width:0;height:0\"><span style=\"position:absolute;top:0;left:0;right:0;bottom:0;background:#374151;border-radius:12px;transition:0.3s;cursor:pointer\"><span id=\"ds-debug-mode-slider\" style=\"position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:0.3s\"></span></span></label></div><div id=\"ds-debug-panel\" style=\"display:none;margin-top:8px\"><div style=\"font-size:11px;color:#6b7280;margin-bottom:8px\">\u6A21\u62DF\u5355\u6B21\u5BF9\u8BDD\u7684token\u6D88\u8017\u53C2\u6570\uFF0C\u4E0D\u4F1A\u4EA7\u751FAPI\u8D39\u7528</div><div style=\"display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px\"><div><div style=\"font-size:10px;color:#9ca3af;margin-bottom:2px\">\u7F13\u5B58\u547D\u4E2D tokens</div><input id=\"ds-debug-hit\" type=\"number\" min=\"0\" value=\"10000\" style=\"width:100%;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div><div><div style=\"font-size:10px;color:#9ca3af;margin-bottom:2px\">\u7F13\u5B58\u672A\u547D\u4E2D tokens</div><input id=\"ds-debug-miss\" type=\"number\" min=\"0\" value=\"5000\" style=\"width:100%;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div><div><div style=\"font-size:10px;color:#9ca3af;margin-bottom:2px\">\u8F93\u51FA tokens</div><input id=\"ds-debug-output\" type=\"number\" min=\"0\" value=\"2000\" style=\"width:100%;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div><div><div style=\"font-size:10px;color:#9ca3af;margin-bottom:2px\">\u6A21\u578B</div><select id=\"ds-debug-model\" style=\"width:100%;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></select></div></div><div style=\"margin-top:6px;padding-top:6px;border-top:1px solid #374151\"><div style=\"font-size:11px;color:#6b7280;margin-bottom:6px\">批量生成历史数据（用于测试图表）</div><div style=\"display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px\"><div><div style=\"font-size:10px;color:#9ca3af;margin-bottom:2px\">起始日期</div><input id=\"ds-debug-date-start\" type=\"date\" style=\"width:100%;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div><div><div style=\"font-size:10px;color:#9ca3af;margin-bottom:2px\">结束日期</div><input id=\"ds-debug-date-end\" type=\"date\" style=\"width:100%;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div></div><div style=\"display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px\"><div><div style=\"font-size:10px;color:#9ca3af;margin-bottom:2px\">每日生成条数</div><input id=\"ds-debug-batch-count\" type=\"number\" min=\"1\" max=\"100\" value=\"1\" style=\"width:100%;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div><div style=\"display:flex;align-items:flex-end\"><button id=\"ds-btn-debug-batch\" style=\"width:100%;padding:6px 8px;background:#6366f1;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-family:'Microsoft YaHei','微软雅黑',sans-serif\">生成模拟数据</button></div></div></div><div id=\"ds-debug-status\" style=\"font-size:11px;color:#34d399\"></div></div></div></div>";
+  var WEBDAV_PANEL_HTML = "<div style=\"border-top:1px solid #374151;padding-top:10px\"><div style=\"font-size:11px;color:#9ca3af;font-weight:500;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px\">WebDAV 云同步</div><div style=\"font-size:11px;color:#9ca3af;line-height:1.6;margin-bottom:8px\">双向合并同步，仅同步统计、设置、余额，<b style='color:#f87171'>不含聊天内容与 API 密钥</b>。密码使用「应用密码」。</div><div style=\"display:flex;flex-direction:column;gap:8px\"><div style=\"display:flex;flex-direction:column;gap:3px\"><span style=\"font-size:12px;color:#e5e7eb\">服务器地址</span><input id=\"ds-webdav-url\" placeholder=\"https://dav.jianguoyun.com/dav/\" style=\"padding:7px 9px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div><div style=\"display:flex;gap:8px\"><div style=\"flex:1;display:flex;flex-direction:column;gap:3px\"><span style=\"font-size:12px;color:#e5e7eb\">用户名</span><input id=\"ds-webdav-user\" placeholder=\"邮箱/用户名\" style=\"padding:7px 9px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div><div style=\"flex:1;display:flex;flex-direction:column;gap:3px\"><span style=\"font-size:12px;color:#e5e7eb\">应用密码</span><input id=\"ds-webdav-pass\" type=\"password\" placeholder=\"WebDAV 应用密码\" style=\"padding:7px 9px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div></div><div style=\"display:flex;flex-direction:column;gap:3px\"><span style=\"font-size:12px;color:#e5e7eb\">远程子路径（可留空）</span><input id=\"ds-webdav-path\" placeholder=\"如 DeepSeek（留空为根目录）\" style=\"padding:7px 9px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div><div style=\"display:flex;flex-direction:column;gap:3px\"><span style=\"font-size:12px;color:#e5e7eb\">CORS 代理（可选，坚果云必填）</span><input id=\"ds-webdav-proxy\" placeholder=\"https://你的代理/\" style=\"padding:7px 9px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div><div style=\"display:flex;align-items:center;gap:8px;margin-top:2px\"><button id=\"ds-btn-webdav-sync\" style=\"padding:8px 14px;border:1px solid rgba(52,211,153,0.4);border-radius:6px;background:rgba(52,211,153,0.12);color:#34d399;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit\">☁️ 立即同步</button><span id=\"ds-webdav-status\" style=\"font-size:11px;color:#9ca3af\"></span></div></div></div>";
+  var SETTINGS_PANEL_HTML = "<div style=\"font-size:11px;color:#9ca3af;font-weight:500;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.5px\">设置</div><div style=\"display:flex;flex-direction:column;gap:10px\"><div style=\"margin-bottom:2px\"><div style=\"font-size:11px;color:#9ca3af;font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px\">API密钥</div><div style=\"display:flex;gap:6px\"><input id=\"ds-api-key\" type=\"password\" placeholder=\"输入DeepSeek API密钥\" style=\"flex:1;padding:8px 10px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:13px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"><button id=\"ds-btn-save-key\" style=\"padding:8px 12px;border:1px solid #374151;border-radius:6px;background:#374151;color:#e5e7eb;font-size:12px;font-weight:500;cursor:pointer;font-family:'Microsoft YaHei','微软雅黑',sans-serif;white-space:nowrap\">保存</button></div></div><div style=\"border-top:1px solid #374151;padding-top:10px\"><div style=\"display:flex;align-items:center;justify-content:space-between\"><span style=\"font-size:13px;color:#e5e7eb;font-weight:500\">自动校准余额</span><label style=\"position:relative;display:inline-block;width:44px;height:24px;cursor:pointer\"><input type=\"checkbox\" id=\"ds-auto-balance\" style=\"opacity:0;width:0;height:0\"><span style=\"position:absolute;top:0;left:0;right:0;bottom:0;background:#374151;border-radius:12px;transition:0.3s;cursor:pointer\"><span id=\"ds-auto-balance-slider\" style=\"position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:0.3s\"></span></span></label></div><div id=\"ds-auto-balance-interval\" style=\"display:none;margin-top:8px\"><div style=\"display:flex;align-items:center;justify-content:space-between\"><span style=\"font-size:13px;color:#e5e7eb;font-weight:500\">校准间隔</span><div style=\"display:flex;align-items:center;gap:8px\"><input type=\"number\" id=\"ds-balance-interval\" min=\"1\" max=\"100\" value=\"10\" style=\"width:60px;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:13px;text-align:center;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"><span style=\"font-size:12px;color:#9ca3af\">条消息</span></div></div></div></div><div style=\"border-top:1px solid #374151;padding-top:10px\"><div style=\"font-size:11px;color:#9ca3af;font-weight:500;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.5px\">自定义余额</div><div style=\"font-size:12px;color:#6b7280;margin-bottom:8px\">手动设置余额，设置后将覆盖API查询值</div><div style=\"display:flex;gap:6px\"><input id=\"ds-custom-balance\" type=\"number\" step=\"0.01\" placeholder=\"输入余额金额\" style=\"flex:1;padding:8px 10px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:13px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"><button id=\"ds-btn-save-balance\" style=\"padding:8px 12px;border:1px solid #065f46;border-radius:6px;background:#065f46;color:#6ee7b7;font-size:12px;font-weight:500;cursor:pointer;font-family:'Microsoft YaHei','微软雅黑',sans-serif;white-space:nowrap\">保存</button><button id=\"ds-btn-clear-balance\" style=\"padding:8px 12px;border:1px solid #7f1d1d;border-radius:6px;background:#7f1d1d;color:#fca5a5;font-size:12px;font-weight:500;cursor:pointer;font-family:'Microsoft YaHei','微软雅黑',sans-serif;white-space:nowrap\">清除</button></div><div id=\"ds-custom-balance-status\" style=\"font-size:11px;color:#6b7280;margin-top:4px\"></div></div></div><div style=\"border-top:1px solid #374151;padding-top:10px\"><div style=\"display:flex;align-items:center;justify-content:space-between\"><span style=\"font-size:13px;color:#e5e7eb;font-weight:500\">新价格机制</span><label style=\"position:relative;display:inline-block;width:44px;height:24px;cursor:pointer\"><input type=\"checkbox\" id=\"ds-use-new-pricing\" style=\"opacity:0;width:0;height:0\"><span style=\"position:absolute;top:0;left:0;right:0;bottom:0;background:#374151;border-radius:12px;transition:0.3s;cursor:pointer\"><span id=\"ds-use-new-pricing-slider\" style=\"position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:0.3s\"></span></span></label></div><div id=\"ds-new-pricing-panel\" style=\"display:none;margin-top:8px\"><div style=\"display:flex;align-items:center;gap:6px;margin-bottom:6px\"><span style=\"font-size:11px;color:#6b7280;white-space:nowrap\">生效日期</span><input type=\"date\" id=\"ds-new-pricing-date\" style=\"flex:1;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"><button id=\"ds-btn-pricing-today\" style=\"padding:4px 8px;border:1px solid #374151;border-radius:4px;background:#0e1520;color:#60a5fa;font-size:11px;cursor:pointer;font-family:'Microsoft YaHei','微软雅黑',sans-serif;white-space:nowrap\">今天</button></div><div style=\"font-size:10px;color:#6b7280;line-height:1.5\"><div style=\"font-weight:500;color:#9ca3af;margin-bottom:4px\">高峰时段（北京时间）</div><div>结束时间早于开始时间视为跨天（如 22:00~次日02:00）</div></div><div id=\"ds-peak-hours-list\" style=\"margin-top:6px;display:flex;flex-direction:column;gap:4px\"></div><div style=\"display:flex;justify-content:flex-end;margin-top:6px\"><button id=\"ds-btn-add-peak-hour\" style=\"padding:4px 10px;border:1px solid #374151;border-radius:5px;background:#0e1520;color:#60a5fa;font-size:11px;cursor:pointer;font-family:'Microsoft YaHei','微软雅黑',sans-serif\">＋ 添加时段</button></div><div style=\"font-size:10px;color:#6b7280;margin-top:4px\">该时间之前的请求统一使用旧价格</div><div id=\"ds-new-pricing-status\" style=\"font-size:11px;color:#6b7280;margin-top:4px\"></div></div></div><div style=\"border-top:1px solid #374151;padding-top:10px\"><div style=\"display:flex;align-items:center;justify-content:space-between\"><span style=\"font-size:13px;color:#e5e7eb;font-weight:500\">峰值提示小圆点</span><label style=\"position:relative;display:inline-block;width:44px;height:24px;cursor:pointer\"><input type=\"checkbox\" id=\"ds-peak-dot\" style=\"opacity:0;width:0;height:0\"><span style=\"position:absolute;top:0;left:0;right:0;bottom:0;background:#374151;border-radius:12px;transition:0.3s;cursor:pointer\"><span id=\"ds-peak-dot-slider\" style=\"position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:0.3s\"></span></span></label></div><div style=\"font-size:11px;color:#6b7280;margin-top:6px;line-height:1.6\">在酒馆右上角显示高峰提示小圆点：高峰时段红色、临近高峰(10分钟内)黄色、非高峰绿色，可拖动并记忆位置</div><div style=\"display:flex;align-items:center;gap:6px;margin-top:8px\"><button id=\"ds-btn-reset-peak-dot\" style=\"padding:4px 10px;border:1px solid #374151;border-radius:5px;background:#0e1520;color:#60a5fa;font-size:11px;cursor:pointer;font-family:'Microsoft YaHei','微软雅黑',sans-serif\">重置位置</button><span style=\"font-size:10px;color:#6b7280\">将圆点恢复至右上角默认位置</span></div></div><div style=\"border-top:1px solid #374151;padding-top:10px\"><div style=\"font-size:11px;color:#9ca3af;font-weight:500;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px\">模型与价格</div><div style=\"font-size:11px;color:#6b7280;line-height:1.6;margin-bottom:6px\">模型名需与 API 返回的 model 一致；价格为 ¥/百万 tokens；留空则回落内置价格，内置模型不可删除。</div><div id=\"ds-custom-models-list\" style=\"display:flex;flex-direction:column;gap:6px\"></div><div style=\"display:flex;justify-content:flex-end;margin-top:6px\"><button id=\"ds-btn-add-model\" style=\"padding:4px 10px;border:1px solid #374151;border-radius:5px;background:#0e1520;color:#60a5fa;font-size:11px;cursor:pointer;font-family:'Microsoft YaHei','微软雅黑',sans-serif\">＋ 添加模型</button></div></div><div style=\"border-top:1px solid #374151;padding-top:10px\"><div style=\"display:flex;align-items:center;justify-content:space-between\"><span style=\"font-size:13px;color:#e5e7eb;font-weight:500\">调试模式</span><label style=\"position:relative;display:inline-block;width:44px;height:24px;cursor:pointer\"><input type=\"checkbox\" id=\"ds-debug-mode\" style=\"opacity:0;width:0;height:0\"><span style=\"position:absolute;top:0;left:0;right:0;bottom:0;background:#374151;border-radius:12px;transition:0.3s;cursor:pointer\"><span id=\"ds-debug-mode-slider\" style=\"position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:0.3s\"></span></span></label></div><div id=\"ds-debug-panel\" style=\"display:none;margin-top:8px\"><div style=\"font-size:11px;color:#6b7280;margin-bottom:8px\">\u6A21\u62DF\u5355\u6B21\u5BF9\u8BDD\u7684token\u6D88\u8017\u53C2\u6570\uFF0C\u4E0D\u4F1A\u4EA7\u751FAPI\u8D39\u7528</div><div style=\"display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px\"><div><div style=\"font-size:10px;color:#9ca3af;margin-bottom:2px\">\u7F13\u5B58\u547D\u4E2D tokens</div><input id=\"ds-debug-hit\" type=\"number\" min=\"0\" value=\"10000\" style=\"width:100%;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div><div><div style=\"font-size:10px;color:#9ca3af;margin-bottom:2px\">\u7F13\u5B58\u672A\u547D\u4E2D tokens</div><input id=\"ds-debug-miss\" type=\"number\" min=\"0\" value=\"5000\" style=\"width:100%;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div><div><div style=\"font-size:10px;color:#9ca3af;margin-bottom:2px\">\u8F93\u51FA tokens</div><input id=\"ds-debug-output\" type=\"number\" min=\"0\" value=\"2000\" style=\"width:100%;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div><div><div style=\"font-size:10px;color:#9ca3af;margin-bottom:2px\">\u6A21\u578B</div><select id=\"ds-debug-model\" style=\"width:100%;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></select></div></div><div style=\"margin-top:6px;padding-top:6px;border-top:1px solid #374151\"><div style=\"font-size:11px;color:#6b7280;margin-bottom:6px\">批量生成历史数据（用于测试图表）</div><div style=\"display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px\"><div><div style=\"font-size:10px;color:#9ca3af;margin-bottom:2px\">起始日期</div><input id=\"ds-debug-date-start\" type=\"date\" style=\"width:100%;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div><div><div style=\"font-size:10px;color:#9ca3af;margin-bottom:2px\">结束日期</div><input id=\"ds-debug-date-end\" type=\"date\" style=\"width:100%;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div></div><div style=\"display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px\"><div><div style=\"font-size:10px;color:#9ca3af;margin-bottom:2px\">每日生成条数</div><input id=\"ds-debug-batch-count\" type=\"number\" min=\"1\" max=\"100\" value=\"1\" style=\"width:100%;padding:6px 8px;border:1px solid #374151;border-radius:6px;background:#080d14;color:#e5e7eb;font-size:12px;font-family:'Microsoft YaHei','微软雅黑',sans-serif;outline:none\"></div><div style=\"display:flex;align-items:flex-end\"><button id=\"ds-btn-debug-batch\" style=\"width:100%;padding:6px 8px;background:#6366f1;color:white;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-family:'Microsoft YaHei','微软雅黑',sans-serif\">生成模拟数据</button></div></div></div><div id=\"ds-debug-status\" style=\"font-size:11px;color:#34d399\"></div></div></div></div>" + WEBDAV_PANEL_HTML;
 
   // ===== 设置窗口（仿照统计详情窗口样式创建独立弹窗） =====
   var _ds_settingsOpen = false;
@@ -1582,6 +1844,18 @@ function createChartUI() {
     if (peakDotToggle) { peakDotToggle.onchange = function() { state.settings.peakDot = this.checked; if (peakDotSlider) peakDotSlider.style.left = this.checked ? '23px' : '3px'; saveSettings(); updatePeakDot(); }; }
     var peakDotResetBtn = doc.getElementById('ds-btn-reset-peak-dot');
     if (peakDotResetBtn) { peakDotResetBtn.onclick = function() { resetPeakDot(); try { (window.parent || window).toastr.success('已重置圆点到右上角默认位置'); } catch(e) {} }; }
+    var wUrl = doc.getElementById('ds-webdav-url');
+    var wUser = doc.getElementById('ds-webdav-user');
+    var wPass = doc.getElementById('ds-webdav-pass');
+    var wPath = doc.getElementById('ds-webdav-path');
+    var wProxy = doc.getElementById('ds-webdav-proxy');
+    var wSync = doc.getElementById('ds-btn-webdav-sync');
+    if (wUrl) { wUrl.onchange = function() { state.settings.webdav.url = this.value.trim(); saveSettings(); }; }
+    if (wUser) { wUser.onchange = function() { state.settings.webdav.username = this.value.trim(); saveSettings(); }; }
+    if (wPath) { wPath.onchange = function() { state.settings.webdav.path = this.value.trim(); saveSettings(); }; }
+    if (wProxy) { wProxy.onchange = function() { state.settings.webdav.proxy = this.value.trim(); saveSettings(); }; }
+    if (wPass) { wPass.onchange = function() { saveData(WEBDAV_PASS_STORAGE, encryptKey(this.value)); }; }
+    if (wSync) { wSync.onclick = function() { doSyncNow(); }; }
   }
   // ===== 设置窗口打开时同步各控件当前值 =====
   function refreshSettingsUI() {
@@ -1640,6 +1914,16 @@ function createChartUI() {
     var peakDotSlider = doc.getElementById('ds-peak-dot-slider');
     if (peakDotToggle) peakDotToggle.checked = state.settings.peakDot !== false;
     if (peakDotSlider) peakDotSlider.style.left = (state.settings.peakDot !== false) ? '23px' : '3px';
+    var wUrl = doc.getElementById('ds-webdav-url');
+    var wUser = doc.getElementById('ds-webdav-user');
+    var wPath = doc.getElementById('ds-webdav-path');
+    var wProxy = doc.getElementById('ds-webdav-proxy');
+    var wPass = doc.getElementById('ds-webdav-pass');
+    if (wUrl && state.settings.webdav) wUrl.value = state.settings.webdav.url || '';
+    if (wUser && state.settings.webdav) wUser.value = state.settings.webdav.username || '';
+    if (wPath && state.settings.webdav) wPath.value = state.settings.webdav.path || '';
+    if (wProxy && state.settings.webdav) wProxy.value = state.settings.webdav.proxy || '';
+    if (wPass) { try { var _wp = decryptKey(loadData(WEBDAV_PASS_STORAGE) || ''); wPass.value = _wp; } catch(e) {} }
     fillDebugModelSelect();
   }
 
