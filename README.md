@@ -2,7 +2,7 @@
 
 实时统计和预测 DeepSeek API(和其余兼容API) 的 token 消耗、费用、预测剩余对话数和缓存命中情况。
 
-该项目已从脚本迁移为酒馆扩展，请前往https://github.com/janmk1453/Api-Usage 获取最新更新，未来脚本版仅进行维护性更新
+**该项目已从脚本迁移为酒馆扩展，请前往https://github.com/janmk1453/Api-Usage 获取最新更新，未来脚本版仅进行维护性更新**
 
 ## 预览
 
